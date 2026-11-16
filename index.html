@@ -1,0 +1,2871 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Input & Cetak Nota Kontan dan Kuitansi</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Courier Prime (untuk efek ketikan dokumen) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- html2canvas untuk Ekspor / Kirim Dokumen ke File JPG -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .font-typewriter {
+            font-family: 'Courier Prime', monospace;
+        }
+        .font-serif-classic {
+            font-family: 'Playfair Display', serif;
+        }
+
+        /* Kuitansi Bersih Tanpa Ornamen / Polos Putih (Hemat Tinta & Formal) */
+        .kuitansi-clean-sheet {
+            background-color: #ffffff;
+            color: #0f172a;
+        }
+
+        /* Tema Warna Kuitansi */
+        .kuitansi-theme-blue {
+            background-color: #eff6ff;
+            border-color: #1d4ed8 !important;
+            color: #0f172a;
+        }
+        .kuitansi-theme-green {
+            background-color: #ecfdf5;
+            border-color: #047857 !important;
+            color: #0f172a;
+        }
+        .kuitansi-theme-red {
+            background-color: #fff1f2;
+            border-color: #be123c !important;
+            color: #0f172a;
+        }
+        .kuitansi-theme-amber {
+            background-color: #fffbeb;
+            border-color: #b45309 !important;
+            color: #0f172a;
+        }
+
+        /* Garis buku tulis titik-titik presisi untuk Untuk Pembayaran */
+        .kuitansi-lined-text {
+            line-height: 24px;
+            background-image: repeating-linear-gradient(
+                to bottom,
+                transparent 0px,
+                transparent 22px,
+                #1e293b 22px,
+                #1e293b 23px,
+                transparent 23px,
+                transparent 24px
+            );
+        }
+
+        /* Aturan Khusus Cetak (Print) */
+        @media print {
+            @page {
+                margin: 0;
+            }
+            html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+                width: 100% !important;
+                height: auto !important;
+            }
+            header, main, #toast-container, #history-modal, .no-print {
+                display: none !important;
+            }
+            #direct-print-root {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+            }
+            #direct-print-root .shadow-lg,
+            #direct-print-root .shadow-md,
+            #direct-print-root .shadow-sm {
+                box-shadow: none !important;
+            }
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Container Khusus Cetak Langsung (Hanya Tampil Saat Print) -->
+    <div id="direct-print-root" class="hidden"></div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 no-print"></div>
+
+    <!-- Header / Navbar -->
+    <header class="bg-slate-900 text-white shadow-md no-print sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-sky-500 p-2 rounded-xl text-white shadow-inner">
+                    <i data-lucide="receipt" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold tracking-tight">DocuAdmin Pro</h1>
+                    <p class="text-xs text-slate-400">Input & Cetak Nota Kontan dan Kuitansi Resmi</p>
+                </div>
+            </div>
+
+            <!-- Tab Switcher -->
+            <div class="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
+                <button id="tab-nota" onclick="switchDocType('nota')" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all bg-sky-600 text-white shadow">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                    <span>Nota Kontan</span>
+                </button>
+                <button id="tab-kuitansi" onclick="switchDocType('kuitansi')" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-300 hover:text-white">
+                    <i data-lucide="banknote" class="w-4 h-4"></i>
+                    <span>Kuitansi</span>
+                </button>
+                <button id="tab-katalog" onclick="switchDocType('katalog')" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-300 hover:text-white">
+                    <i data-lucide="tags" class="w-4 h-4"></i>
+                    <span>Katalog & Label</span>
+                </button>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" onclick="toggleTutorialModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-sm font-medium border border-slate-700 transition cursor-pointer" title="Buka Panduan Penggunaan Aplikasi">
+                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Panduan</span>
+                </button>
+                <button type="button" onclick="toggleHistoryModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium border border-slate-700 transition cursor-pointer">
+                    <i data-lucide="history" class="w-4 h-4 text-sky-400"></i>
+                    <span class="hidden sm:inline">Riwayat</span>
+                    <span id="history-badge" class="bg-sky-600 text-white text-xs px-1.5 py-0.5 rounded-full">0</span>
+                </button>
+                <button type="button" onclick="openScanCatalogModal('nota')" title="Scan barcode barang beruntun untuk keranjang belanja" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 text-sm font-semibold border border-emerald-600/50 transition cursor-pointer">
+                    <i data-lucide="scan-barcode" class="w-4 h-4"></i>
+                    <span>Scan Belanja</span>
+                </button>
+                <button type="button" onclick="saveCurrentDocument()" title="Simpan dokumen ke Riwayat" class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-sm font-bold shadow-md transition cursor-pointer">
+                    <i data-lucide="save" class="w-4 h-4"></i>
+                    <span>Simpan</span>
+                </button>
+                <button type="button" onclick="printDocument()" title="Cetak dokumen aktif" class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-sm font-bold shadow-md transition cursor-pointer">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    <span>Cetak</span>
+                </button>
+                <div class="flex items-center bg-amber-400 rounded-xl shadow-md overflow-hidden">
+                    <button type="button" onclick="printThermalNota()" title="Cetak Nota Kontan format Struk Kasir Termal" class="flex items-center gap-1.5 px-3.5 py-2 hover:bg-amber-300 text-slate-950 text-sm font-bold transition cursor-pointer">
+                        <i data-lucide="receipt-text" class="w-4 h-4"></i>
+                        <span>Termal</span>
+                    </button>
+                    <select id="thermal-paper-size" onchange="if(document.getElementById('nota-paper-format')) { document.getElementById('nota-paper-format').value = 'thermal-' + this.value; renderPreview(); }" title="Pilih lebar kertas printer termal" class="bg-amber-500/50 hover:bg-amber-500/70 text-slate-950 text-xs font-extrabold px-2 py-2 border-l border-amber-700/30 outline-none cursor-pointer">
+                        <option value="80mm">80mm</option>
+                        <option value="58mm">58mm</option>
+                    </select>
+                </div>
+                <button type="button" onclick="printCombinedDocument()" title="Cetak Nota Kontan dan Kuitansi bersamaan dalam 1 halaman" class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-bold shadow transition cursor-pointer">
+                    <i data-lucide="files" class="w-4 h-4"></i>
+                    <span class="hidden md:inline">Cetak Gabungan (1 Hal.)</span>
+                    <span class="md:hidden">1 Hal.</span>
+                </button>
+                <button type="button" onclick="sendDocumentAsJpg('nota')" title="Unduh / Kirim Nota Kontan sebagai file gambar JPG" class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-sm font-bold shadow transition cursor-pointer">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                    <span>Kirim Nota JPG</span>
+                </button>
+                <button type="button" onclick="sendDocumentAsJpg('kuitansi')" title="Unduh / Kirim Kwitansi sebagai file gambar JPG" class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white text-sm font-bold shadow transition cursor-pointer">
+                    <i data-lucide="image-down" class="w-4 h-4"></i>
+                <!-- Pilihan Tata Letak & Warna Kuitansi -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col gap-3">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">1. Pilih Model Tata Letak Kuitansi</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" id="btn-kui-model-modern-corp" onclick="setKuitansiModel('modern-corp')" class="kui-model-btn border-2 border-slate-900 bg-slate-100 text-slate-950 rounded-xl p-2 text-left transition">
+                                <div class="flex items-center gap-1.5 mb-0.5">
+                                    <span class="w-3 h-3 rounded-full bg-slate-900 inline-block"></span>
+                                    <span class="text-xs font-bold">Model 1</span>
+                                </div>
+                                <div class="text-[11px] font-medium text-slate-700 leading-tight">Formal Bersih (Standar)</div>
+                            </button>
+                            <button type="button" id="btn-kui-model-classic-plain" onclick="setKuitansiModel('classic-plain')" class="kui-model-btn border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 rounded-xl p-2 text-left transition">
+                                <div class="flex items-center gap-1.5 mb-0.5">
+                                    <span class="w-3 h-3 rounded-full border-2 border-slate-800 bg-white inline-block"></span>
+                                    <span class="text-xs font-semibold">Model 2</span>
+                                </div>
+                                <div class="text-[11px] text-slate-500 leading-tight">Klasik (Kolom Samping Kiri)</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-200 pt-2.5">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">2. Pilih Warna Kuitansi</label>
+                        <div class="grid grid-cols-5 gap-1.5">
+                            <button type="button" id="btn-kui-color-plain" onclick="setKuitansiColor('plain')" class="kui-color-btn border-2 border-slate-900 bg-white text-slate-900 rounded-xl p-1.5 text-center transition">
+                                <span class="w-4 h-4 rounded-full border border-slate-400 bg-white mx-auto block mb-1"></span>
+                                <span class="text-[10px] font-bold block leading-tight">Polos</span>
+                            </button>
+                            <button type="button" id="btn-kui-color-blue" onclick="setKuitansiColor('blue')" class="kui-color-btn border border-slate-300 bg-white hover:bg-blue-50 text-slate-700 rounded-xl p-1.5 text-center transition">
+                                <span class="w-4 h-4 rounded-full bg-blue-600 mx-auto block mb-1"></span>
+                                <span class="text-[10px] font-semibold block leading-tight">Biru</span>
+                            </button>
+                            <button type="button" id="btn-kui-color-green" onclick="setKuitansiColor('green')" class="kui-color-btn border border-slate-300 bg-white hover:bg-emerald-50 text-slate-700 rounded-xl p-1.5 text-center transition">
+                                <span class="w-4 h-4 rounded-full bg-emerald-600 mx-auto block mb-1"></span>
+                                <span class="text-[10px] font-semibold block leading-tight">Hijau</span>
+                            </button>
+                            <button type="button" id="btn-kui-color-red" onclick="setKuitansiColor('red')" class="kui-color-btn border border-slate-300 bg-white hover:bg-rose-50 text-slate-700 rounded-xl p-1.5 text-center transition">
+                                <span class="w-4 h-4 rounded-full bg-rose-600 mx-auto block mb-1"></span>
+                                <span class="text-[10px] font-semibold block leading-tight">Merah</span>
+                            </button>
+                            <button type="button" id="btn-kui-color-amber" onclick="setKuitansiColor('amber')" class="kui-color-btn border border-slate-300 bg-white hover:bg-amber-50 text-slate-700 rounded-xl p-1.5 text-center transition">
+                                <span class="w-4 h-4 rounded-full bg-amber-600 mx-auto block mb-1"></span>
+                                <span class="text-[10px] font-semibold block leading-tight">Kuning</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FORM 1: NOTA KONTAN -->
+            <div id="form-nota" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
+                        Detail Nota Kontan
+                    </h2>
+                    <button type="button" onclick="resetNotaForm()" class="text-xs text-slate-500 hover:text-rose-600 flex items-center gap-1 transition">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Nomor Nota</label>
+                        <input type="text" id="nota-no" value="NK-2025/0842" oninput="renderPreview()" class="w-full px-3 py-2 text-sm font-bold text-slate-950 bg-white font-typewriter border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Tanggal Transaksi</label>
+                        <input type="date" id="nota-date" onchange="renderPreview()" class="w-full px-3 py-2 text-sm font-semibold text-slate-950 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Kepada Yth. (Tuan / Toko)</label>
+                        <input type="text" id="nota-customer" value="PT. Nusantara Abadi" oninput="renderPreview()" placeholder="Nama pembeli / instansi" class="w-full px-3 py-2 text-sm font-semibold text-slate-950 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Alamat / Kota Pembeli</label>
+                        <input type="text" id="nota-customer-addr" value="Bandung" oninput="renderPreview()" placeholder="Kota atau alamat singkat" class="w-full px-3 py-2 text-sm font-semibold text-slate-950 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                </div>
+
+                <!-- Pengaturan Kategori Pembeli (Agen / Pengecer), Diskon & PPN -->
+                <div class="bg-sky-50/70 border border-sky-200 rounded-xl p-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div>
+                        <label for="nota-buyer-tier" class="block text-xs font-semibold text-slate-700 mb-1">Kategori Pembeli</label>
+                        <select id="nota-buyer-tier" onchange="handleBuyerTierChange(this.value)" class="w-full px-2.5 py-2 text-xs font-bold text-slate-950 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 outline-none">
+                            <option value="umum" selected>Umum (0%)</option>
+                            <option value="pengecer">Pengecer (5%)</option>
+                            <option value="agen">Agen (10%)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="nota-discount-percent" class="block text-xs font-semibold text-slate-700 mb-1">Diskon (%)</label>
+                        <div class="relative">
+                            <input type="number" id="nota-discount-percent" value="0" min="0" max="100" step="0.5" oninput="updateNotaTotalDisplay(); renderPreview();" class="w-full pl-2.5 pr-7 py-2 text-xs font-typewriter font-bold text-slate-950 text-right border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 outline-none">
+                            <span class="absolute right-2.5 top-2 text-xs font-bold text-slate-600">%</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="nota-ppn-percent" class="block text-xs font-semibold text-slate-700 mb-1">PPN (%)</label>
+                        <div class="relative">
+                            <input type="number" id="nota-ppn-percent" value="11" min="0" max="100" step="0.5" oninput="updateNotaTotalDisplay(); renderPreview();" class="w-full pl-2.5 pr-7 py-2 text-xs font-typewriter font-bold text-slate-950 text-right border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 outline-none">
+                            <span class="absolute right-2.5 top-2 text-xs font-bold text-slate-600">%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Daftar Barang / Item -->
+                <div>
+                    <div class="flex items-center justify-between mb-2 gap-2">
+                        <label class="text-xs font-bold uppercase tracking-wider text-slate-600">Daftar Barang / Jasa</label>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="openScanCatalogModal('nota')" class="inline-flex items-center gap-1 text-xs font-semibold bg-emerald-500 text-slate-950 hover:bg-emerald-400 px-2.5 py-1 rounded-lg shadow-xs transition">
+                                <i data-lucide="scan-line" class="w-3.5 h-3.5"></i> Scan Belanja
+                            </button>
+                            <button type="button" onclick="switchDocType('katalog')" class="inline-flex items-center gap-1 text-xs font-semibold bg-amber-100 text-amber-800 hover:bg-amber-200 px-2.5 py-1 rounded-lg transition">
+                                <i data-lucide="tags" class="w-3.5 h-3.5"></i> Pilih Katalog
+                            </button>
+                            <button type="button" onclick="addNotaItem()" class="inline-flex items-center gap-1 text-xs font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200 transition">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Tambah Baris
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="nota-items-container" class="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1"></div>
+                </div>
+
+                <!-- Opsi Tambahan Nota -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Format Kertas Nota</label>
+                        <select id="nota-paper-format" onchange="syncThermalSizeFromNota(this.value); renderPreview();" class="w-full px-3 py-2 text-sm text-slate-950 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 outline-none font-semibold">
+                            <option value="standard" selected>Standar (10,75 × 16,5 cm)</option>
+                            <option value="thermal-80mm">Struk Termal 80mm</option>
+                            <option value="thermal-58mm">Struk Termal 58mm</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Jumlah Baris Tabel Cetak</label>
+                        <select id="nota-min-rows" onchange="renderPreview()" class="w-full px-3 py-2 text-sm font-semibold text-slate-950 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 outline-none">
+                            <option value="10" selected>10 Baris (Standar Font 12)</option>
+                            <option value="15">15 Baris (Penuh)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Ukuran Font (px)</label>
+                        <input type="number" id="nota-font-size" value="12" min="8" max="20" step="1" oninput="changeDocumentFontSize(this.value)" class="w-full px-3 py-2 text-sm font-bold text-slate-950 bg-white text-center border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Nama Hormat Kami</label>
+                        <input type="text" id="nota-signer" value="Rina Marlina, S.E." oninput="syncSignerName('nota', this.value)" placeholder="Nama petugas / penerima" class="w-full px-3 py-2 text-sm font-semibold text-slate-950 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Kepada Yth. (Tuan / Toko)</label>
+                        <input type="text" id="nota-customer" value="PT. Nusantara Abadi" oninput="renderPreview()" placeholder="Nama pembeli / instansi" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Alamat / Kota Pembeli</label>
+                        <input type="text" id="nota-customer-addr" value="Bandung" oninput="renderPreview()" placeholder="Kota atau alamat singkat" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                </div>
+
+                <!-- Pengaturan Kategori Pembeli (Agen / Pengecer), Diskon & PPN -->
+                <div class="bg-sky-50/70 border border-sky-200 rounded-xl p-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div>
+                        <label for="nota-buyer-tier" class="block text-xs font-semibold text-slate-700 mb-1">Kategori Pembeli</label>
+                        <select id="nota-buyer-tier" onchange="handleBuyerTierChange(this.value)" class="w-full px-2.5 py-2 text-xs font-bold border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 outline-none">
+                            <option value="umum" selected>Umum (0%)</option>
+                            <option value="pengecer">Pengecer (5%)</option>
+                            <option value="agen">Agen (10%)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="nota-discount-percent" class="block text-xs font-semibold text-slate-700 mb-1">Diskon (%)</label>
+                        <div class="relative">
+                            <input type="number" id="nota-discount-percent" value="0" min="0" max="100" step="0.5" oninput="updateNotaTotalDisplay(); renderPreview();" class="w-full pl-2.5 pr-7 py-2 text-xs font-typewriter font-bold text-right border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 outline-none">
+                            <span class="absolute right-2.5 top-2 text-xs font-bold text-slate-500">%</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="nota-ppn-percent" class="block text-xs font-semibold text-slate-700 mb-1">PPN (%)</label>
+                        <div class="relative">
+                            <input type="number" id="nota-ppn-percent" value="11" min="0" max="100" step="0.5" oninput="updateNotaTotalDisplay(); renderPreview();" class="w-full pl-2.5 pr-7 py-2 text-xs font-typewriter font-bold text-right border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 outline-none">
+                            <span class="absolute right-2.5 top-2 text-xs font-bold text-slate-500">%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Daftar Barang / Item -->
+                <div>
+                    <div class="flex items-center justify-between mb-2 gap-2">
+                        <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Daftar Barang / Jasa</label>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="openScanCatalogModal('nota')" class="inline-flex items-center gap-1 text-xs font-semibold bg-emerald-500 text-slate-950 hover:bg-emerald-400 px-2.5 py-1 rounded-lg shadow-xs transition">
+                                <i data-lucide="scan-line" class="w-3.5 h-3.5"></i> Scan Belanja
+                            </button>
+                            <button type="button" onclick="switchDocType('katalog')" class="inline-flex items-center gap-1 text-xs font-semibold bg-amber-100 text-amber-800 hover:bg-amber-200 px-2.5 py-1 rounded-lg transition">
+                                <i data-lucide="tags" class="w-3.5 h-3.5"></i> Pilih Katalog
+                            </button>
+                            <button type="button" onclick="addNotaItem()" class="inline-flex items-center gap-1 text-xs font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200 transition">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Tambah Baris
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="nota-items-container" class="flex flex-col gap-2.5 max-h-72 overflow-y-auto pr-1"></div>
+                </div>
+
+                <!-- Opsi Tambahan Nota -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Format Kertas Nota</label>
+                        <select id="nota-paper-format" onchange="syncThermalSizeFromNota(this.value); renderPreview();" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 outline-none font-medium">
+                            <option value="standard" selected>Standar (10,75 × 16,5 cm)</option>
+                            <option value="thermal-80mm">Struk Termal 80mm</option>
+                            <option value="thermal-58mm">Struk Termal 58mm</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Jumlah Baris Tabel Cetak</label>
+                        <select id="nota-min-rows" onchange="renderPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-sky-500 outline-none">
+                            <option value="10" selected>10 Baris (Standar Font 12)</option>
+                            <option value="15">15 Baris (Penuh)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Ukuran Font (px)</label>
+                        <input type="number" id="nota-font-size" value="12" min="8" max="20" step="1" oninput="changeDocumentFontSize(this.value)" class="w-full px-3 py-2 text-sm font-bold text-center border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Nama Hormat Kami</label>
+                        <input type="text" id="nota-signer" value="Rina Marlina, S.E." oninput="syncSignerName('nota', this.value)" placeholder="Nama petugas / penerima" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                </div>
+
+                <!-- Ringkasan Total & Konversi ke Kuitansi -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col gap-2.5">
+                    <div class="flex flex-col gap-1 border-b border-slate-200 pb-2 text-xs">
+                        <div class="flex items-center justify-between text-slate-600">
+                            <span>Subtotal Barang</span>
+                            <span id="nota-subtotal-display" class="font-typewriter font-semibold">Rp 0</span>
+                        </div>
+                        <div class="flex items-center justify-between text-emerald-700">
+                            <span id="nota-discount-label">Diskon (Umum 0%)</span>
+                            <span id="nota-discount-display" class="font-typewriter font-semibold">- Rp 0</span>
+                        </div>
+                        <div class="flex items-center justify-between text-slate-600">
+                            <span id="nota-ppn-label">PPN (11%)</span>
+                            <span id="nota-ppn-display" class="font-typewriter font-semibold">+ Rp 0</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold uppercase text-slate-600">Total Akhir Nota</span>
+                        <div class="flex items-center gap-1 font-typewriter font-extrabold text-base text-slate-900">
+                            <span>Rp</span>
+                            <input type="text" id="nota-total-display" readonly value="0" class="w-32 bg-transparent text-right outline-none">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" onclick="saveCurrentDocument()" class="py-2 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                            <span>Simpan</span>
+                        </button>
+                        <button type="button" onclick="printDocument()" class="py-2 px-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer">
+                            <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                            <span>Cetak</span>
+                        </button>
+                        <button type="button" onclick="printThermalNota()" class="py-2 px-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer">
+                            <i data-lucide="receipt-text" class="w-3.5 h-3.5"></i>
+                            <span>Termal</span>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button type="button" onclick="convertNotaToKuitansi()" class="w-full py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer">
+                            <i data-lucide="arrow-right-left" class="w-3.5 h-3.5"></i>
+                            <span>Salin ke Kuitansi</span>
+                        </button>
+                        <button type="button" onclick="sendDocumentAsJpg('nota')" class="w-full py-2 px-3 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer">
+                            <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                            <span>Kirim Nota Kontan (JPG)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FORM 2: KUITANSI -->
+            <div id="form-kuitansi" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                        Detail Kuitansi Resmi
+                    </h2>
+                    <button type="button" onclick="resetKuitansiForm()" class="text-xs text-slate-500 hover:text-rose-600 flex items-center gap-1 transition">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset
+                    </button>
+                </div>
+
+                <!-- Pilihan Tata Letak Kuitansi Polos Bersih -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">Pilih Tata Letak Kuitansi (Polos Hemat Tinta)</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" id="btn-kui-model-modern-corp" onclick="setKuitansiModel('modern-corp')" class="kui-model-btn border-2 border-slate-900 bg-slate-100 text-slate-950 rounded-xl p-2 text-left transition">
+                            <div class="flex items-center gap-1.5 mb-0.5">
+                                <span class="w-3 h-3 rounded-full bg-slate-900 inline-block"></span>
+                                <span class="text-xs font-bold">Model 1</span>
+                            </div>
+                            <div class="text-[11px] font-medium text-slate-700 leading-tight">Formal Bersih (Standar)</div>
+                        </button>
+                        <button type="button" id="btn-kui-model-classic-plain" onclick="setKuitansiModel('classic-plain')" class="kui-model-btn border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 rounded-xl p-2 text-left transition">
+                            <div class="flex items-center gap-1.5 mb-0.5">
+                                <span class="w-3 h-3 rounded-full border-2 border-slate-800 bg-white inline-block"></span>
+                                <span class="text-xs font-semibold">Model 2</span>
+                            </div>
+                            <div class="text-[11px] text-slate-500 leading-tight">Klasik Polos (Kolom Kiri)</div>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Nomor Kuitansi</label>
+                        <input type="text" id="kui-no" value="KWT/2025/0119" oninput="renderPreview()" class="w-full px-3 py-2 text-sm font-typewriter border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Tanggal Kuitansi</label>
+                        <input type="date" id="kui-date" onchange="renderPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Sudah Terima Dari</label>
+                    <input type="text" id="kui-from" value="PT. Nusantara Abadi" oninput="renderPreview()" placeholder="Nama perorangan atau perusahaan pembayar" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Nominal Uang (Rp)</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-2 text-sm font-bold text-slate-500">Rp</span>
+                        <input type="number" id="kui-amount" value="2450000" min="0" step="1000" oninput="handleKuitansiAmountChange()" class="w-full pl-10 pr-3 py-2 text-sm font-bold font-typewriter border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-xs font-semibold text-slate-700">Banyaknya Uang (Terbilang Otomatis)</label>
+                        <span class="text-[11px] text-emerald-600 font-medium">Otomatis dari Nominal</span>
+                    </div>
+                    <textarea id="kui-terbilang" rows="2" oninput="renderPreview()" class="w-full px-3 py-2 text-xs italic bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Untuk Pembayaran</label>
+                    <textarea id="kui-purpose" rows="2" oninput="renderPreview()" placeholder="Keterangan tujuan pembayaran..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">Pembayaran lunas pengadaan perangkat komputer dan aksesoris sesuai Nota No. NK-2025/0842</textarea>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Penerima / Kasir</label>
+                        <input type="text" id="kui-receiver" value="Rina Marlina, S.E." oninput="syncSignerName('kuitansi', this.value)" placeholder="Nama penanda tangan kuitansi" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Ukuran Font (px)</label>
+                        <input type="number" id="kui-font-size" value="12" min="8" max="20" step="1" oninput="changeDocumentFontSize(this.value)" class="w-full px-3 py-2 text-sm font-bold text-center border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    <button type="button" onclick="saveCurrentDocument()" class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span>Simpan Kuitansi</span>
+                    </button>
+                    <button type="button" onclick="printDocument()" class="py-2.5 px-3 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span>Cetak Kuitansi</span>
+                    </button>
+                </div>
+
+                <div>
+                    <button type="button" onclick="sendDocumentAsJpg('kuitansi')" class="w-full py-2.5 px-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer">
+                        <i data-lucide="image-down" class="w-4 h-4"></i>
+                        <span>Kirim Kwitansi Kontan (File JPG)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- FORM 3: KATALOG BARANG & PRINT LABEL -->
+            <div id="form-katalog" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        Katalog Barang & Print Label
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="openScanCatalogModal('katalog')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition">
+                            <i data-lucide="scan-barcode" class="w-3.5 h-3.5"></i>
+                            <span>Scan Input Katalog</span>
+                        </button>
+                        <span class="text-xs font-semibold text-slate-500">Total: <strong id="catalog-count" class="text-slate-800">0</strong></span>
+                    </div>
+                </div>
+
+                <!-- Input Tambah Item Katalog -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col gap-2.5">
+                    <div class="flex items-center justify-between">
+                        <div class="text-xs font-bold uppercase tracking-wider text-slate-600">Tambah Item ke Katalog</div>
+                        <button type="button" onclick="openScanCatalogModal('katalog')" class="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 transition">
+                            <i data-lucide="camera" class="w-3 h-3"></i> Scan Barcode / QR
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">No. / Kode Item</label>
+                            <div class="flex gap-1">
+                                <input type="text" id="cat-no" placeholder="BRG-004" class="w-full px-2.5 py-2 text-sm font-typewriter border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 outline-none">
+                                <button type="button" onclick="openScanCatalogModal('katalog')" title="Scan kode barang" class="px-2.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 rounded-xl flex items-center justify-center shrink-0 transition">
+                                    <i data-lucide="scan-line" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Input Label / Nama Item</label>
+                            <input type="text" id="cat-label" placeholder="Contoh: Mouse Gaming Wireless" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 outline-none">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Keterangan / Spesifikasi</label>
+                            <input type="text" id="cat-desc" placeholder="Contoh: Warna Hitam • Garansi 1 Thn" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Harga (Rp)</label>
+                            <input type="number" id="cat-price" min="0" step="500" placeholder="150000" class="w-full px-3 py-2 text-sm font-typewriter font-bold border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 outline-none">
+                        </div>
+                    </div>
+                    <div class="flex justify-end pt-1">
+                        <button type="button" onclick="addCatalogItem()" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                            <span>Simpan ke Katalog</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Kolom Download & Upload Template Katalog (CSV / Excel) -->
+                <div class="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="flex flex-col justify-between gap-2 bg-white border border-emerald-200 rounded-xl p-2.5">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                <i data-lucide="file-down" class="w-3.5 h-3.5 text-emerald-600"></i>
+                                <span>Download Template Katalog</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-0.5 leading-snug">Unduh format file CSV (bisa dibuka & diedit di Excel).</p>
+                        </div>
+                        <button type="button" onclick="downloadCatalogTemplate()" class="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            <span>Unduh Template (.CSV)</span>
+                        </button>
+                    </div>
+
+                    <div class="flex flex-col justify-between gap-2 bg-white border border-sky-200 rounded-xl p-2.5">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                <i data-lucide="file-up" class="w-3.5 h-3.5 text-sky-600"></i>
+                                <span>Upload Template Katalog</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-0.5 leading-snug">Impor massal item dari file template CSV / TXT.</p>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <input type="file" id="cat-template-file" accept=".csv,.txt" onchange="uploadCatalogTemplate(event)" class="hidden">
+                            <button type="button" onclick="document.getElementById('cat-template-file').click()" class="w-full py-1.5 px-3 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer">
+                                <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                                <span>Pilih & Upload File</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pengaturan & Cetak Label Massal -->
+                <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <label for="label-paper-size" class="text-xs font-bold text-amber-950">Ukuran Stiker Label:</label>
+                        <select id="label-paper-size" onchange="renderPreview()" class="px-2.5 py-1.5 text-xs font-semibold border border-amber-300 rounded-lg bg-white text-slate-800 outline-none">
+                            <option value="50x30" selected>Stiker 50 × 30 mm</option>
+                            <option value="60x40">Stiker 60 × 40 mm</option>
+                            <option value="a4-grid">Lembar A4 (Grid 3 Kolom)</option>
+                        </select>
+                    </div>
+                    <button type="button" onclick="printCatalogLabels()" class="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition">
+                        <i data-lucide="printer" class="w-3.5 h-3.5 text-amber-400"></i>
+                        <span>Print Label Terpilih</span>
+                    </button>
+                </div>
+
+                <!-- Pencarian & Daftar Barang Katalog -->
+                <div class="flex flex-col gap-2">
+                    <div class="relative">
+                        <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5"></i>
+                        <input type="text" id="cat-search" oninput="renderCatalogList()" placeholder="Cari nomor kode, label barang, atau keterangan..." class="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none">
+                    </div>
+                    <div id="catalog-items-container" class="flex flex-col gap-2 max-h-80 overflow-y-auto pr-1"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- KOLOM KANAN: LIVE PREVIEW DOKUMEN (7 Kolom di Desktop) -->
+        <section class="lg:col-span-7 flex flex-col gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-white px-4 py-2.5 rounded-2xl border border-slate-200 shadow-sm no-print">
+                <div class="flex items-center gap-2 text-xs font-medium text-slate-600">
+                    <i data-lucide="eye" class="w-4 h-4 text-sky-600"></i>
+                    <span>Pratinjau Dokumen Real-Time</span>
+                </div>
+                <div class="flex items-center gap-2.5">
+                    <!-- Kolom Pengubah Ukuran Font -->
+                    <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-300 px-2.5 py-1 rounded-xl" title="Ubah ukuran font dokumen">
+                        <i data-lucide="type" class="w-3.5 h-3.5 text-sky-600"></i>
+                        <label for="doc-font-size" class="text-xs font-semibold text-slate-700">Font:</label>
+                        <input type="number" id="doc-font-size" value="12" min="8" max="20" step="1" oninput="changeDocumentFontSize(this.value)" class="w-12 bg-white border border-slate-300 rounded-md px-1 py-0.5 text-center text-xs font-bold text-slate-900 outline-none">
+                        <span class="text-[11px] font-semibold text-slate-500">px</span>
+                    </div>
+                    <button id="btn-quick-switch-kuitansi" type="button" onclick="cycleKuitansiModel()" class="hidden items-center gap-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 px-2.5 py-1 rounded-lg transition">
+                        <i data-lucide="layout-template" class="w-3.5 h-3.5"></i>
+                        <span>Model: <strong id="quick-model-badge">Formal Bersih</strong></span>
+                    </button>
+                    <button id="btn-quick-color-kuitansi" type="button" onclick="cycleKuitansiColor()" class="hidden items-center gap-1.5 text-xs font-semibold bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-200 px-2.5 py-1 rounded-lg transition">
+                        <i data-lucide="palette" class="w-3.5 h-3.5"></i>
+                        <span>Warna: <strong id="quick-color-badge">Polos</strong></span>
+                    </button>
+                    <span id="preview-dimension-label" class="text-xs font-semibold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200">
+                        Nota Standar (10,75 × 16,5 cm)
+                    </span>
+                </div>
+            </div>
+
+            <!-- Area Kertas Dokumen -->
+            <div class="bg-slate-200/70 p-4 sm:p-6 rounded-2xl border border-slate-300/80 overflow-x-auto flex justify-center items-start min-h-[480px]">
+                <div id="print-area" class="w-full flex justify-center"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal Riwayat Dokumen Tersimpan -->
+    <div id="history-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-40 hidden items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="folder-clock" class="w-5 h-5 text-sky-600"></i>
+                    Riwayat Dokumen Tersimpan (Sesi Ini)
+                </h3>
+                <button onclick="toggleHistoryModal()" class="text-slate-400 hover:text-slate-700 p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="history-list" class="p-6 overflow-y-auto flex-1 flex flex-col gap-3"></div>
+            <div class="px-6 py-3 border-t border-slate-200 bg-slate-50 flex justify-end">
+                <button onclick="toggleHistoryModal()" class="px-4 py-2 bg-slate-800 text-white rounded-xl text-sm font-medium hover:bg-slate-700">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Tutorial Penggunaan Aplikasi -->
+    <div id="tutorial-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-40 hidden items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-3xl w-full max-h-[88vh] flex flex-col overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-900 text-white">
+                <div class="flex items-center gap-2.5">
+                    <div class="bg-amber-400 text-slate-950 p-1.5 rounded-lg">
+                        <i data-lucide="book-open" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base">Panduan Penggunaan DocuAdmin Pro</h3>
+                        <p class="text-xs text-slate-300">Langkah cepat membuat, mengelola katalog, dan mencetak Nota & Kuitansi</p>
+                    </div>
+                </div>
+                <button onclick="toggleTutorialModal()" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 flex flex-col gap-4 text-sm text-slate-700 leading-relaxed">
+                <div class="flex gap-3.5 p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <div class="w-7 h-7 rounded-full bg-sky-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">1</div>
+                    <div>
+                        <h4 class="font-bold text-slate-900 mb-1">Atur Identitas Toko / Instansi & Ukuran Font</h4>
+                        <p class="text-xs text-slate-600">Isi <strong>Nama Toko</strong>, <strong>Kota Penerbitan</strong>, dan <strong>Alamat</strong> pada kartu paling atas di kolom kiri (centang/hapus centang <em>Tampilkan Kop</em> sesuai kebutuhan). Gunakan pengatur <strong>Ukuran Font (8–20 px)</strong> untuk memperbesar atau memperkecil tulisan dokumen cetak secara real-time.</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3.5 p-3.5 rounded-xl bg-amber-50/60 border border-amber-200">
+                    <div class="w-7 h-7 rounded-full bg-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">2</div>
+                    <div>
+                        <h4 class="font-bold text-slate-900 mb-1">Kelola Katalog Barang, Template CSV & Print Label</h4>
+                        <ul class="text-xs text-slate-600 list-disc pl-4 space-y-1">
+                            <li><strong>Input Manual & Scan Barcode:</strong> Simpan item lengkap dengan <strong>No. Kode</strong>, <strong>Input Label</strong>, <strong>Keterangan</strong>, dan <strong>Harga</strong>, atau klik <strong>Scan Input Katalog</strong> menggunakan kamera/scanner USB.</li>
+                            <li><strong>Download & Upload Template (.CSV):</strong> Gunakan tombol <strong>Unduh Template (.CSV)</strong> untuk mengedit daftar barang massal di Excel, lalu unggah kembali lewat <strong>Pilih & Upload File</strong>.</li>
+                            <li><strong>Print Label & Masuk Nota:</strong> Cetak stiker label satuan/massal (ukuran <code>50×30mm</code>, <code>60×40mm</code>, atau <code>Lembar A4</code>) serta klik <strong>+ Masuk Nota</strong> untuk memasukkannya ke transaksi.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="flex gap-3.5 p-3.5 rounded-xl bg-sky-50/60 border border-sky-200">
+                    <div class="w-7 h-7 rounded-full bg-sky-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">3</div>
+                    <div>
+                        <h4 class="font-bold text-slate-900 mb-1">Membuat Nota Kontan (Diskon Agen/Pengecer, PPN & Scan Kasir)</h4>
+                        <ul class="text-xs text-slate-600 list-disc pl-4 space-y-1">
+                            <li><strong>Kategori Pembeli, Diskon & PPN:</strong> Pilih kategori <strong>Umum (0%)</strong>, <strong>Pengecer (5%)</strong>, atau <strong>Agen (10%)</strong> untuk mengisi diskon secara otomatis (dapat diubah manual), serta atur persentase <strong>PPN (%)</strong>.</li>
+                            <li><strong>Scan Belanja (Mode Kasir):</strong> Klik <strong>Scan Belanja</strong> untuk memindai barcode barang secara beruntun dengan penambahan jumlah (Qty) otomatis.</li>
+                            <li><strong>Format Kertas & Salin Kuitansi:</strong> Pilih ukuran <strong>Standar (10,75 × 16,5 cm)</strong> atau <strong>Struk Termal (58mm / 80mm)</strong>, lalu klik <strong>Salin ke Kuitansi</strong> untuk menyalin total akhir nota langsung ke kuitansi.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="flex gap-3.5 p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200">
+                    <div class="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">4</div>
+                    <div>
+                        <h4 class="font-bold text-slate-900 mb-1">Membuat Kuitansi & Pilihan Model Warna</h4>
+                        <p class="text-xs text-slate-600">Pilih tab <strong>Kuitansi</strong>, tentukan model tata letak (<strong>Model 1: Formal Bersih</strong> atau <strong>Model 2: Klasik Kolom Kiri</strong>), serta pilih <strong>5 tema warna</strong> (<strong>Polos</strong>, <strong>Biru</strong>, <strong>Hijau</strong>, <strong>Merah</strong>, atau <strong>Kuning</strong>). Saat mengetik angka pada <strong>Nominal Uang (Rp)</strong>, teks <strong>Terbilang</strong> terisi otomatis.</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3.5 p-3.5 rounded-xl bg-indigo-50/60 border border-indigo-200">
+                    <div class="w-7 h-7 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">5</div>
+                    <div>
+                        <h4 class="font-bold text-slate-900 mb-1">Opsi Pencetakan, Riwayat & Kirim File JPG</h4>
+                        <ul class="text-xs text-slate-600 list-disc pl-4 space-y-1">
+                            <li><strong>Cetak & Termal:</strong> Mencetak dokumen aktif atau langsung mencetak struk kasir ukuran <strong>80mm / 58mm</strong>.</li>
+                            <li><strong>Cetak Gabungan (1 Hal.):</strong> Menggabungkan Nota Kontan dan Kuitansi dalam 1 lembar kertas A4 lengkap dengan garis potong.</li>
+                            <li><strong>Kirim Nota JPG / Kirim Kwitansi JPG:</strong> Mengonversi dokumen menjadi gambar <code>.jpg</code> siap kirim ke WhatsApp, disalin ke clipboard (<code>Ctrl+V</code>), atau diunduh ke perangkat.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex justify-between items-center text-xs text-slate-500">
+                <span>Tip: Klik <strong>Simpan</strong> sebelum mereset form agar data tersimpan di menu <strong>Riwayat</strong>.</span>
+                <button onclick="toggleTutorialModal()" class="px-4 py-2 bg-sky-600 text-white rounded-xl font-bold hover:bg-sky-500 transition">Mengerti, Tutup Panduan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Scan Input Katalog & Nota -->
+    <div id="scan-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 hidden items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col">
+            <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-900 text-white">
+                <div class="flex items-center gap-2">
+                    <div class="bg-emerald-500 text-slate-950 p-1.5 rounded-lg">
+                        <i data-lucide="scan-barcode" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-sm">Scan Input Katalog & Barang</h3>
+                        <p id="scan-mode-subtitle" class="text-[11px] text-slate-300">Gunakan Kamera atau Scanner Barcode USB</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeScanCatalogModal()" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-5 flex flex-col gap-4">
+                <!-- Pilihan Mode Tujuan Scan -->
+                <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <button type="button" id="scan-target-katalog" onclick="setScanTargetMode('katalog')" class="py-1.5 px-2.5 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-xs transition">
+                        Input ke Katalog
+                    </button>
+                    <button type="button" id="scan-target-nota" onclick="setScanTargetMode('nota')" class="py-1.5 px-2.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 transition">
+                        Scan Belanja (Kasir)
+                    </button>
+                </div>
+
+                <!-- Opsi Mode Scan Beruntun (Khusus Scan Belanja) -->
+                <div id="scan-shopping-controls" class="hidden bg-sky-50 border border-sky-200 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                    <label class="inline-flex items-center gap-2 text-xs font-semibold text-sky-950 cursor-pointer">
+                        <input type="checkbox" id="scan-continuous-mode" checked class="rounded text-sky-600 focus:ring-sky-500">
+                        <span>Mode Kasir Beruntun (Auto +1 Qty)</span>
+                    </label>
+                    <button type="button" onclick="closeScanCatalogModal()" class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-bold transition">
+                        Selesai
+                    </button>
+                </div>
+
+                <!-- Area Kamera Live Scanner -->
+                <div class="relative bg-slate-950 rounded-xl overflow-hidden border-2 border-slate-800 aspect-video flex flex-col items-center justify-center">
+                    <video id="scan-video" autoplay playsinline muted class="w-full h-full object-cover hidden"></video>
+                    <div id="scan-placeholder" class="text-center p-4 flex flex-col items-center gap-2">
+                        <i data-lucide="camera" class="w-8 h-8 text-slate-400"></i>
+                        <p class="text-xs text-slate-300">Klik tombol <strong>Aktifkan Kamera</strong> atau langsung arahkan <strong>Scanner Barcode USB</strong> ke kolom di bawah.</p>
+                        <button type="button" onclick="startCameraScanner()" class="mt-1 px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg text-xs font-bold flex items-center gap-1.5 transition">
+                            <i data-lucide="video" class="w-3.5 h-3.5"></i> Aktifkan Kamera
+                        </button>
+                    </div>
+                    <!-- Garis Bidik Scanner -->
+                    <div id="scan-reticle" class="hidden pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <div class="w-3/4 h-24 border-2 border-emerald-400 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] relative">
+                            <div class="w-full h-0.5 bg-rose-500 absolute top-1/2 -translate-y-1/2 animate-pulse"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="scan-camera-status" class="text-[11px] text-center text-slate-500">
+                    Siap memindai kode barang (EAN-13, Code-128, QR Code, atau kode katalog).
+                </div>
+
+                <!-- Input Manual / Scanner USB (Auto-Enter) -->
+                <form onsubmit="event.preventDefault(); processScannedCode(document.getElementById('scan-manual-input').value);" class="flex flex-col gap-1.5">
+                    <label for="scan-manual-input" class="text-xs font-bold text-slate-700">Kode Hasil Scan / Input Scanner USB:</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="scan-manual-input" placeholder="Scan barcode atau ketik kode lalu Enter..." class="flex-1 px-3 py-2 text-sm font-typewriter font-bold border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none">
+                        <button type="submit" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition">
+                            Proses
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Ringkasan Keranjang Belanja Hasil Scan -->
+                <div id="scan-cart-summary" class="hidden border-t border-slate-200 pt-3 flex flex-col gap-2">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="font-bold text-slate-700">Keranjang Nota Saat Ini (<span id="scan-cart-count">0</span> item)</span>
+                        <span class="font-typewriter font-extrabold text-emerald-700">Total: Rp <span id="scan-cart-total">0</span></span>
+                    </div>
+                    <div id="scan-cart-list" class="max-h-28 overflow-y-auto flex flex-col gap-1 bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Pratinjau & Kirim Dokumen JPG (WhatsApp / Share / Salin / Unduh) -->
+    <div id="jpg-share-modal" class="fixed inset-0 bg-slate-900/75 backdrop-blur-xs z-50 hidden items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-900 text-white">
+                <div class="flex items-center gap-2.5">
+                    <div class="bg-teal-500 text-slate-950 p-1.5 rounded-lg">
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 id="jpg-modal-title" class="font-bold text-sm">Kirim Dokumen (File JPG)</h3>
+                        <p id="jpg-modal-subtitle" class="text-[11px] text-slate-300">Pratinjau gambar siap kirim ke WhatsApp atau unduh</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeJpgShareModal()" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-4 sm:p-5 overflow-y-auto flex-1 flex flex-col gap-4 bg-slate-100">
+                <!-- Pratinjau Hasil Render JPG -->
+                <div class="bg-slate-200/80 border border-slate-300 rounded-xl p-3 flex flex-col items-center justify-center min-h-[220px]">
+                    <div id="jpg-preview-loading" class="flex flex-col items-center gap-2 py-8 text-slate-600 text-xs font-semibold">
+                        <div class="w-7 h-7 border-3 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Merender gambar JPG resolusi tinggi...</span>
+                    </div>
+                    <img id="jpg-preview-img" src="" alt="Pratinjau Dokumen JPG" class="hidden max-w-full max-h-[42vh] rounded-lg shadow-md border border-slate-300 bg-white object-contain">
+                </div>
+
+                <!-- Ringkasan Pesan Pengantar -->
+                <div class="bg-white border border-slate-200 rounded-xl p-3 flex flex-col gap-1.5">
+                    <div class="flex items-center justify-between">
+                        <label for="jpg-share-caption" class="text-xs font-bold text-slate-700">Pesan Pengantar (Otomatis untuk WhatsApp / Chat):</label>
+                        <span id="jpg-file-info" class="text-[11px] font-mono font-semibold text-slate-500"></span>
+                    </div>
+                    <textarea id="jpg-share-caption" rows="3" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none text-slate-800"></textarea>
+                </div>
+
+                <!-- Tombol Aksi Kirim Lengkap -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button type="button" onclick="shareJpgViaWhatsApp()" class="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer">
+                        <i data-lucide="message-circle" class="w-4 h-4"></i>
+                        <span>Kirim via WhatsApp</span>
+                    </button>
+                    <button type="button" onclick="shareJpgNative()" class="py-2.5 px-4 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer">
+                        <i data-lucide="share-2" class="w-4 h-4"></i>
+                        <span>Bagikan Aplikasi Lain</span>
+                    </button>
+                    <button type="button" onclick="copyJpgToClipboard()" class="py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer">
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                        <span>Salin Gambar (Paste di Chat)</span>
+                    </button>
+                    <button type="button" onclick="downloadGeneratedJpg()" class="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer">
+                        <i data-lucide="download" class="w-4 h-4 text-teal-400"></i>
+                        <span>Unduh File .JPG</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. STATE & KONFIGURASI APLIKASI
+        // ==========================================
+        let activeDocType = 'nota';
+        let currentKuitansiModel = 'modern-corp';
+        let currentKuitansiColor = 'plain';
+        let currentFontSize = 12;
+        let savedDocuments = [];
+        let selectedLabelItemId = null;
+        let scanTargetMode = 'katalog';
+        let scanStream = null;
+        let scanLoopTimer = null;
+        let lastScanCode = '';
+        let lastScanTimestamp = 0;
+        let generatedJpgState = {
+            dataUrl: '',
+            blob: null,
+            fileName: '',
+            docTitle: '',
+            docType: 'nota'
+        };
+
+        let notaItems = [
+            { id: 1, qty: 2, name: 'Monitor LED 24 Inch Full HD', price: 1150000 },
+            { id: 2, qty: 1, name: 'Keyboard & Mouse Wireless Combo', price: 150000 }
+        ];
+
+        let catalogItems = [
+            { id: 101, no: 'BRG-001', label: 'Monitor LED 24 Inch', desc: 'Full HD IPS 75Hz', price: 1150000 },
+            { id: 102, no: 'BRG-002', label: 'Keyboard & Mouse Wireless', desc: 'Combo 2.4GHz Hitam', price: 150000 },
+            { id: 103, no: 'BRG-003', label: 'Kabel HDMI 2.0 3 Meter', desc: 'Braided 4K 60Hz', price: 65000 }
+        ];
+
+        const kuitansiModels = {
+            'modern-corp': { label: 'Formal Bersih' },
+            'classic-plain': { label: 'Klasik Kolom Kiri' }
+        };
+
+        const kuitansiColorThemes = {
+            plain: {
+                label: 'Polos',
+                sheetClass: 'kuitansi-clean-sheet',
+                bg: '#ffffff',
+                sideBg: '#ffffff',
+                boxBg: '#ffffff',
+                border: '#0f172a',
+                accent: '#0f172a',
+                subText: '#334155'
+            },
+            blue: {
+                label: 'Biru',
+                sheetClass: 'kuitansi-theme-blue',
+                bg: '#eff6ff',
+                sideBg: '#dbeafe',
+                boxBg: '#dbeafe',
+                border: '#1d4ed8',
+                accent: '#1e3a8a',
+                subText: '#1e40af'
+            },
+            green: {
+                label: 'Hijau',
+                sheetClass: 'kuitansi-theme-green',
+                bg: '#ecfdf5',
+                sideBg: '#d1fae5',
+                boxBg: '#d1fae5',
+                border: '#047857',
+                accent: '#064e3b',
+                subText: '#065f46'
+            },
+            red: {
+                label: 'Merah',
+                sheetClass: 'kuitansi-theme-red',
+                bg: '#fff1f2',
+                sideBg: '#ffe4e6',
+                boxBg: '#ffe4e6',
+                border: '#be123c',
+                accent: '#881337',
+                subText: '#9f1239'
+            },
+            amber: {
+                label: 'Kuning',
+                sheetClass: 'kuitansi-theme-amber',
+                bg: '#fffbeb',
+                sideBg: '#fef3c7',
+                boxBg: '#fef3c7',
+                border: '#b45309',
+                accent: '#78350f',
+                subText: '#92400e'
+            }
+        };
+
+        // ==========================================
+        // 2. UTILITAS FORMATTER & NOTIFIKASI
+        // ==========================================
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatRupiah(num) {
+            const val = Math.round(Number(num) || 0);
+            return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        }
+
+        function formatIndonesianDate(dateStr) {
+            if (!dateStr) return '....................';
+            const months = [
+                'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+            ];
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return dateStr;
+            const year = parts[0];
+            const monthIdx = parseInt(parts[1], 10) - 1;
+            const day = parseInt(parts[2], 10);
+            return `${day} ${months[monthIdx] || ''} ${year}`;
+        }
+
+        function terbilang(n) {
+            const angka = Math.floor(Math.abs(Number(n) || 0));
+            if (angka === 0) return 'Nol';
+            const satuan = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'];
+
+            function konversi(x) {
+                if (x < 12) return satuan[x];
+                if (x < 20) return konversi(x - 10) + ' Belas';
+                if (x < 100) return konversi(Math.floor(x / 10)) + ' Puluh' + (x % 10 > 0 ? ' ' + konversi(x % 10) : '');
+                if (x < 200) return 'Seratus' + (x - 100 > 0 ? ' ' + konversi(x - 100) : '');
+                if (x < 1000) return konversi(Math.floor(x / 100)) + ' Ratus' + (x % 100 > 0 ? ' ' + konversi(x % 100) : '');
+                if (x < 2000) return 'Seribu' + (x - 1000 > 0 ? ' ' + konversi(x - 1000) : '');
+                if (x < 1000000) return konversi(Math.floor(x / 1000)) + ' Ribu' + (x % 1000 > 0 ? ' ' + konversi(x % 1000) : '');
+                if (x < 1000000000) return konversi(Math.floor(x / 1000000)) + ' Juta' + (x % 1000000 > 0 ? ' ' + konversi(x % 1000000) : '');
+                if (x < 1000000000000) return konversi(Math.floor(x / 1000000000)) + ' Miliar' + (x % 1000000000 > 0 ? ' ' + konversi(x % 1000000000) : '');
+                return konversi(Math.floor(x / 1000000000000)) + ' Triliun' + (x % 1000000000000 > 0 ? ' ' + konversi(x % 1000000000000) : '');
+            }
+            return konversi(angka).replace(/\s+/g, ' ').trim();
+        }
+
+        function formatTerbilangRupiah(amount) {
+            const val = Math.floor(Math.abs(Number(amount) || 0));
+            return `${terbilang(val)} Rupiah`;
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            const bgMap = {
+                success: 'bg-emerald-600 text-white border-emerald-500',
+                error: 'bg-rose-600 text-white border-rose-500',
+                info: 'bg-slate-900 text-white border-slate-700'
+            };
+            toast.className = `px-4 py-2.5 rounded-xl shadow-lg border text-xs font-semibold flex items-center gap-2 transition-all ${bgMap[type] || bgMap.info}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ==========================================
+        // 3. NAVIGASI TAB & PENGATURAN FONT
+        // ==========================================
+        function switchDocType(type) {
+            activeDocType = type;
+            const tabs = ['nota', 'kuitansi', 'katalog'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                const form = document.getElementById(`form-${t}`);
+                if (btn) {
+                    if (t === type) {
+                        btn.className = 'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all bg-sky-600 text-white shadow';
+                    } else {
+                        btn.className = 'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-300 hover:text-white';
+                    }
+                }
+                if (form) {
+                    form.classList.toggle('hidden', t !== type);
+                }
+            });
+
+            const quickSwitchBtn = document.getElementById('btn-quick-switch-kuitansi');
+            if (quickSwitchBtn) {
+                quickSwitchBtn.classList.toggle('hidden', type !== 'kuitansi');
+                quickSwitchBtn.classList.toggle('flex', type === 'kuitansi');
+            }
+
+            const quickColorBtn = document.getElementById('btn-quick-color-kuitansi');
+            if (quickColorBtn) {
+                quickColorBtn.classList.toggle('hidden', type !== 'kuitansi');
+                quickColorBtn.classList.toggle('flex', type === 'kuitansi');
+            }
+
+            if (type === 'katalog') {
+                renderCatalogList();
+            }
+            renderPreview();
+        }
+
+        function changeDocumentFontSize(val) {
+            const parsed = Math.min(20, Math.max(8, parseInt(val, 10) || 12));
+            currentFontSize = parsed;
+            ['doc-font-size', 'form-font-size-global', 'nota-font-size', 'kui-font-size'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && Number(el.value) !== parsed) {
+                    el.value = parsed;
+                }
+            });
+            renderPreview();
+        }
+
+        function syncSignerName(source, value) {
+            if (source === 'nota') {
+                const kuiEl = document.getElementById('kui-receiver');
+                if (kuiEl) kuiEl.value = value;
+            } else {
+                const notaEl = document.getElementById('nota-signer');
+                if (notaEl) notaEl.value = value;
+            }
+            renderPreview();
+        }
+
+        function syncThermalSizeFromNota(formatVal) {
+            const topSelect = document.getElementById('thermal-paper-size');
+            if (!topSelect) return;
+            if (formatVal === 'thermal-58mm') topSelect.value = '58mm';
+            if (formatVal === 'thermal-80mm') topSelect.value = '80mm';
+        }
+
+        // ==========================================
+        // 4. MANAJEMEN ITEM NOTA KONTAN
+        // ==========================================
+        function renderNotaItemsForm() {
+            const container = document.getElementById('nota-items-container');
+            if (!container) return;
+
+            container.innerHTML = notaItems.map((item, idx) => `
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-300 flex flex-col gap-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[11px] font-bold text-slate-600">Item #${idx + 1}</span>
+                        <button type="button" onclick="removeNotaItem(${item.id})" class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-rose-600 hover:bg-rose-100 rounded-lg transition" title="Hapus baris">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i> Hapus
+                        </button>
+                    </div>
+                    <div>
+                        <input type="text" value="${escapeHtml(item.name)}" oninput="updateNotaItem(${item.id}, 'name', this.value)" placeholder="Ketik nama barang atau jasa..." class="w-full px-3 py-2 text-sm font-semibold text-slate-950 placeholder:text-slate-400 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <div class="grid grid-cols-12 gap-2 items-center">
+                        <div class="col-span-4">
+                            <label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Qty</label>
+                            <input type="number" min="1" value="${item.qty}" oninput="updateNotaItem(${item.id}, 'qty', this.value)" placeholder="Qty" class="w-full px-2.5 py-1.5 text-sm font-bold text-slate-950 text-center border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-sky-500">
+                        </div>
+                        <div class="col-span-8">
+                            <label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Harga Satuan (Rp)</label>
+                            <input type="number" min="0" step="500" value="${item.price}" oninput="updateNotaItem(${item.id}, 'price', this.value)" placeholder="0" class="w-full px-3 py-1.5 text-sm font-typewriter font-bold text-slate-950 text-right border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-sky-500">
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            updateNotaTotalDisplay();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function addNotaItem() {
+            notaItems.push({ id: Date.now() + Math.random(), qty: 1, name: '', price: 0 });
+            renderNotaItemsForm();
+            renderPreview();
+        }
+
+        function removeNotaItem(id) {
+            if (notaItems.length <= 1) {
+                notaItems[0] = { id: notaItems[0].id, qty: 1, name: '', price: 0 };
+            } else {
+                notaItems = notaItems.filter(it => it.id !== id);
+            }
+            renderNotaItemsForm();
+            renderPreview();
+        }
+
+        function updateNotaItem(id, field, value) {
+            const item = notaItems.find(it => it.id === id);
+            if (!item) return;
+            if (field === 'qty' || field === 'price') {
+                item[field] = Math.max(0, Number(value) || 0);
+            } else {
+                item[field] = value;
+            }
+            updateNotaTotalDisplay();
+            renderPreview();
+        }
+
+        function handleBuyerTierChange(tier) {
+            const discEl = document.getElementById('nota-discount-percent');
+            if (discEl) {
+                if (tier === 'agen') discEl.value = 10;
+                else if (tier === 'pengecer') discEl.value = 5;
+                else discEl.value = 0;
+            }
+            updateNotaTotalDisplay();
+            renderPreview();
+        }
+
+        function getNotaFinancialSummary() {
+            const subtotal = notaItems.reduce((sum, it) => {
+                if (!it.name || it.name.trim() === '') return sum;
+                return sum + ((Number(it.qty) || 0) * (Number(it.price) || 0));
+            }, 0);
+
+            const tier = document.getElementById('nota-buyer-tier')?.value || 'umum';
+            const tierNames = { umum: 'Umum', pengecer: 'Pengecer', agen: 'Agen' };
+            const tierLabel = tierNames[tier] || 'Umum';
+
+            const discountPercent = Math.min(100, Math.max(0, Number(document.getElementById('nota-discount-percent')?.value) || 0));
+            const ppnPercent = Math.min(100, Math.max(0, Number(document.getElementById('nota-ppn-percent')?.value) || 0));
+
+            const discountAmount = Math.round(subtotal * (discountPercent / 100));
+            const dpp = Math.max(0, subtotal - discountAmount);
+            const ppnAmount = Math.round(dpp * (ppnPercent / 100));
+            const grandTotal = dpp + ppnAmount;
+
+            return {
+                subtotal,
+                tier,
+                tierLabel,
+                discountPercent,
+                discountAmount,
+                dpp,
+                ppnPercent,
+                ppnAmount,
+                grandTotal
+            };
+        }
+
+        function updateNotaTotalDisplay() {
+            const summary = getNotaFinancialSummary();
+
+            const subDisp = document.getElementById('nota-subtotal-display');
+            const discLabel = document.getElementById('nota-discount-label');
+            const discDisp = document.getElementById('nota-discount-display');
+            const ppnLabel = document.getElementById('nota-ppn-label');
+            const ppnDisp = document.getElementById('nota-ppn-display');
+            const disp = document.getElementById('nota-total-display');
+
+            if (subDisp) subDisp.textContent = `Rp ${formatRupiah(summary.subtotal)}`;
+            if (discLabel) discLabel.textContent = `Diskon (${summary.tierLabel} ${summary.discountPercent}%)`;
+            if (discDisp) discDisp.textContent = `- Rp ${formatRupiah(summary.discountAmount)}`;
+            if (ppnLabel) ppnLabel.textContent = `PPN (${summary.ppnPercent}%)`;
+            if (ppnDisp) ppnDisp.textContent = `+ Rp ${formatRupiah(summary.ppnAmount)}`;
+            if (disp) disp.value = formatRupiah(summary.grandTotal);
+
+            return summary.grandTotal;
+        }
+
+        function resetNotaForm() {
+            document.getElementById('nota-no').value = 'NK-' + new Date().getFullYear() + '/' + String(Math.floor(1000 + Math.random() * 9000));
+            document.getElementById('nota-customer').value = '';
+            document.getElementById('nota-customer-addr').value = '';
+            const tierEl = document.getElementById('nota-buyer-tier');
+            const discEl = document.getElementById('nota-discount-percent');
+            const ppnEl = document.getElementById('nota-ppn-percent');
+            if (tierEl) tierEl.value = 'umum';
+            if (discEl) discEl.value = 0;
+            if (ppnEl) ppnEl.value = 11;
+            notaItems = [{ id: Date.now(), qty: 1, name: '', price: 0 }];
+            renderNotaItemsForm();
+            renderPreview();
+            showToast('Formulir Nota Kontan telah direset.', 'info');
+        }
+
+        // ==========================================
+        // 5. MANAJEMEN KUITANSI & MODEL DESAIN
+        // ==========================================
+        function setKuitansiModel(modelKey) {
+            if (!kuitansiModels[modelKey]) modelKey = 'modern-corp';
+            currentKuitansiModel = modelKey;
+
+            document.querySelectorAll('.kui-model-btn').forEach(btn => {
+                btn.className = 'kui-model-btn border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 rounded-xl p-2 text-left transition';
+            });
+            const activeBtn = document.getElementById(`btn-kui-model-${modelKey}`);
+            if (activeBtn) {
+                activeBtn.className = 'kui-model-btn border-2 border-slate-900 bg-slate-100 text-slate-950 rounded-xl p-2 text-left transition';
+            }
+
+            const badge = document.getElementById('quick-model-badge');
+            if (badge) badge.textContent = kuitansiModels[modelKey].label;
+
+            renderPreview();
+        }
+
+        function cycleKuitansiModel() {
+            const keys = Object.keys(kuitansiModels);
+            const nextIdx = (keys.indexOf(currentKuitansiModel) + 1) % keys.length;
+            setKuitansiModel(keys[nextIdx]);
+        }
+
+        function setKuitansiColor(colorKey) {
+            if (!kuitansiColorThemes[colorKey]) colorKey = 'plain';
+            currentKuitansiColor = colorKey;
+
+            document.querySelectorAll('.kui-color-btn').forEach(btn => {
+                btn.className = 'kui-color-btn border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 rounded-xl p-1.5 text-center transition';
+            });
+            const activeBtn = document.getElementById(`btn-kui-color-${colorKey}`);
+            if (activeBtn) {
+                activeBtn.className = 'kui-color-btn border-2 border-slate-900 bg-slate-100 text-slate-950 rounded-xl p-1.5 text-center transition shadow-xs';
+            }
+
+            const badge = document.getElementById('quick-color-badge');
+            if (badge) badge.textContent = kuitansiColorThemes[colorKey].label;
+
+            renderPreview();
+        }
+
+        function cycleKuitansiColor() {
+            const keys = Object.keys(kuitansiColorThemes);
+            const nextIdx = (keys.indexOf(currentKuitansiColor) + 1) % keys.length;
+            setKuitansiColor(keys[nextIdx]);
+        }
+
+        function handleKuitansiAmountChange() {
+            const amount = Number(document.getElementById('kui-amount')?.value) || 0;
+            const terbEl = document.getElementById('kui-terbilang');
+            if (terbEl) {
+                terbEl.value = formatTerbilangRupiah(amount);
+            }
+            renderPreview();
+        }
+
+        function resetKuitansiForm() {
+            document.getElementById('kui-no').value = 'KWT/' + new Date().getFullYear() + '/' + String(Math.floor(1000 + Math.random() * 9000));
+            document.getElementById('kui-from').value = '';
+            document.getElementById('kui-amount').value = 0;
+            document.getElementById('kui-purpose').value = '';
+            handleKuitansiAmountChange();
+            showToast('Formulir Kuitansi telah direset.', 'info');
+        }
+
+        function convertNotaToKuitansi() {
+            const total = updateNotaTotalDisplay();
+            const notaNo = document.getElementById('nota-no')?.value || '-';
+            const notaDate = document.getElementById('nota-date')?.value || '';
+            const customer = document.getElementById('nota-customer')?.value || '';
+            const signer = document.getElementById('nota-signer')?.value || '';
+
+            document.getElementById('kui-date').value = notaDate;
+            document.getElementById('kui-from').value = customer;
+            document.getElementById('kui-amount').value = total;
+            document.getElementById('kui-purpose').value = `Pembayaran lunas transaksi sesuai Nota Kontan No. ${notaNo}`;
+            if (signer) document.getElementById('kui-receiver').value = signer;
+
+            handleKuitansiAmountChange();
+            switchDocType('kuitansi');
+            showToast('Total & data Nota Kontan berhasil disalin ke Kuitansi!', 'success');
+        }
+
+        // ==========================================
+        // 6. KATALOG BARANG & PRINT LABEL
+        // ==========================================
+        function resetCatalogFormInputs() {
+            const nextNum = String(catalogItems.length + 1).padStart(3, '0');
+            const noEl = document.getElementById('cat-no');
+            const labelEl = document.getElementById('cat-label');
+            const descEl = document.getElementById('cat-desc');
+            const priceEl = document.getElementById('cat-price');
+            if (noEl) noEl.value = `BRG-${nextNum}`;
+            if (labelEl) labelEl.value = '';
+            if (descEl) descEl.value = '';
+            if (priceEl) priceEl.value = '';
+        }
+
+        function addCatalogItem() {
+            const no = (document.getElementById('cat-no')?.value || '').trim();
+            const label = (document.getElementById('cat-label')?.value || '').trim();
+            const desc = (document.getElementById('cat-desc')?.value || '').trim();
+            const price = Math.max(0, Number(document.getElementById('cat-price')?.value) || 0);
+
+            if (!no || !label) {
+                showToast('No. Kode dan Nama Label item wajib diisi.', 'error');
+                return;
+            }
+
+            const existingIdx = catalogItems.findIndex(it => it.no.toLowerCase() === no.toLowerCase());
+            if (existingIdx >= 0) {
+                catalogItems[existingIdx] = { ...catalogItems[existingIdx], no, label, desc, price };
+                selectedLabelItemId = catalogItems[existingIdx].id;
+                showToast(`Item katalog "${no}" diperbarui.`, 'success');
+            } else {
+                const newItem = { id: Date.now(), no, label, desc, price };
+                catalogItems.unshift(newItem);
+                selectedLabelItemId = newItem.id;
+                showToast(`"${label}" ditambahkan ke katalog.`, 'success');
+            }
+
+            resetCatalogFormInputs();
+            renderCatalogList();
+            renderPreview();
+        }
+
+        function deleteCatalogItem(id) {
+            catalogItems = catalogItems.filter(it => it.id !== id);
+            if (selectedLabelItemId === id) selectedLabelItemId = null;
+            renderCatalogList();
+            renderPreview();
+            showToast('Item dihapus dari katalog.', 'info');
+        }
+
+        function selectCatalogForLabel(id) {
+            selectedLabelItemId = (selectedLabelItemId === id) ? null : id;
+            renderCatalogList();
+            renderPreview();
+        }
+
+        function downloadCatalogTemplate() {
+            const headers = ['Kode_Item', 'Nama_Label', 'Keterangan', 'Harga'];
+            const sampleRows = catalogItems.length > 0
+                ? catalogItems.map(it => [it.no, it.label, it.desc || '', it.price])
+                : [
+                    ['BRG-001', 'Monitor LED 24 Inch', 'Full HD IPS 75Hz', 1150000],
+                    ['BRG-002', 'Keyboard Wireless', 'Combo 2.4GHz Hitam', 150000]
+                ];
+
+            const escapeCsv = (val) => {
+                const str = String(val ?? '');
+                if (str.includes(',') || str.includes(';') || str.includes('"') || str.includes('\n')) {
+                    return `"${str.replace(/"/g, '""')}"`;
+                }
+                return str;
+            };
+
+            const csvLines = [
+                headers.join(','),
+                ...sampleRows.map(row => row.map(escapeCsv).join(','))
+            ];
+            const csvContent = '\uFEFF' + csvLines.join('\r\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'Template_Katalog_Barang.csv';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+
+            showToast('Template_Katalog_Barang.csv berhasil diunduh.', 'success');
+        }
+
+        function parseCsvLine(line, delimiter = ',') {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                    if (inQuotes && line[i + 1] === '"') {
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === delimiter && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        }
+
+        function uploadCatalogTemplate(event) {
+            const file = event?.target?.files?.[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const rawText = String(e.target?.result || '').replace(/^\uFEFF/, '');
+                    const lines = rawText
+                        .split(/\r?\n/)
+                        .map(l => l.trim())
+                        .filter(l => l.length > 0);
+
+                    if (lines.length < 2) {
+                        showToast('File template kosong atau hanya berisi baris judul.', 'error');
+                        return;
+                    }
+
+                    // Deteksi pemisah kolom otomatis (koma atau titik koma dari Excel Indonesia)
+                    const delimiter = (lines[0].split(';').length > lines[0].split(',').length) ? ';' : ',';
+                    let addedCount = 0;
+                    let updatedCount = 0;
+
+                    for (let i = 1; i < lines.length; i++) {
+                        const cols = parseCsvLine(lines[i], delimiter);
+                        const no = (cols[0] || '').trim();
+                        const label = (cols[1] || '').trim();
+                        const desc = (cols[2] || '').trim();
+                        const rawPrice = String(cols[3] || '0').replace(/[^0-9]/g, '');
+                        const price = Math.max(0, parseInt(rawPrice, 10) || 0);
+
+                        if (!no || !label) continue;
+
+                        const existingIdx = catalogItems.findIndex(
+                            it => it.no.toLowerCase() === no.toLowerCase()
+                        );
+                        if (existingIdx >= 0) {
+                            catalogItems[existingIdx] = {
+                                ...catalogItems[existingIdx],
+                                no,
+                                label,
+                                desc,
+                                price
+                            };
+                            updatedCount++;
+                        } else {
+                            catalogItems.unshift({
+                                id: Date.now() + i + Math.random(),
+                                no,
+                                label,
+                                desc,
+                                price
+                            });
+                            addedCount++;
+                        }
+                    }
+
+                    resetCatalogFormInputs();
+                    renderCatalogList();
+                    renderPreview();
+                    showToast(`Impor selesai: ${addedCount} item baru, ${updatedCount} item diperbarui.`, 'success');
+                } catch (err) {
+                    console.error('Gagal membaca file template katalog:', err);
+                    showToast('Format file template tidak valid. Gunakan file CSV.', 'error');
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function addCatalogToNota(id) {
+            const item = catalogItems.find(it => it.id === id);
+            if (!item) return;
+
+            const fullName = item.desc ? `${item.label} (${item.desc})` : item.label;
+            const emptyRow = notaItems.find(row => !row.name || row.name.trim() === '');
+            if (emptyRow) {
+                emptyRow.qty = 1;
+                emptyRow.name = fullName;
+                emptyRow.price = item.price;
+            } else {
+                notaItems.push({ id: Date.now() + Math.random(), qty: 1, name: fullName, price: item.price });
+            }
+            renderNotaItemsForm();
+            showToast(`"${item.label}" dimasukkan ke Nota Kontan.`, 'success');
+        }
+
+        function renderCatalogList() {
+            const container = document.getElementById('catalog-items-container');
+            const countEl = document.getElementById('catalog-count');
+            const query = (document.getElementById('cat-search')?.value || '').trim().toLowerCase();
+
+            if (countEl) countEl.textContent = catalogItems.length;
+            if (!container) return;
+
+            const filtered = catalogItems.filter(it =>
+                it.no.toLowerCase().includes(query) ||
+                it.label.toLowerCase().includes(query) ||
+                (it.desc && it.desc.toLowerCase().includes(query))
+            );
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="text-center py-6 text-xs text-slate-400 border border-dashed border-slate-300 rounded-xl">Tidak ada item katalog yang cocok.</div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(it => {
+                const isSelected = selectedLabelItemId === it.id;
+                return `
+                    <div class="p-2.5 rounded-xl border ${isSelected ? 'border-amber-500 bg-amber-50/70' : 'border-slate-200 bg-white'} flex flex-wrap items-center justify-between gap-2 transition">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[11px] font-typewriter font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-300">${escapeHtml(it.no)}</span>
+                                <span class="text-xs font-bold text-slate-900 truncate">${escapeHtml(it.label)}</span>
+                            </div>
+                            <div class="text-[11px] text-slate-500 truncate mt-0.5">${escapeHtml(it.desc || 'Tanpa keterangan')} • <strong class="text-slate-800 font-typewriter">Rp ${formatRupiah(it.price)}</strong></div>
+                        </div>
+                        <div class="flex items-center gap-1 shrink-0">
+                            <button type="button" onclick="addCatalogToNota(${it.id})" class="px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-[11px] font-bold transition">+ Masuk Nota</button>
+                            <button type="button" onclick="selectCatalogForLabel(${it.id}); printCatalogLabels(${it.id});" class="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-950 rounded-lg text-[11px] font-bold transition" title="Cetak stiker label item ini">Print Label</button>
+                            <button type="button" onclick="deleteCatalogItem(${it.id})" class="p-1 text-rose-500 hover:bg-rose-50 rounded-lg transition" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function generateBarcodeSVG(codeText) {
+            const clean = String(codeText || '000000');
+            let bars = '';
+            let x = 4;
+            for (let i = 0; i < clean.length; i++) {
+                const code = clean.charCodeAt(i);
+                const w1 = (code % 2) + 1;
+                const w2 = ((code >> 2) % 2) + 1;
+                bars += `<rect x="${x}" y="0" width="${w1}" height="22" fill="#0f172a"/>`;
+                x += w1 + 1.5;
+                bars += `<rect x="${x}" y="0" width="${w2}" height="22" fill="#0f172a"/>`;
+                x += w2 + 2;
+            }
+            return `<svg width="100%" height="24" viewBox="0 0 ${Math.max(x + 4, 60)} 24" preserveAspectRatio="none">${bars}</svg>`;
+        }
+
+        function buildCatalogLabelsHTML(singleItemId = null) {
+            const sizeMode = document.getElementById('label-paper-size')?.value || '50x30';
+            const compName = document.getElementById('comp-name')?.value || 'TOKO KAMI';
+            const targetId = singleItemId || selectedLabelItemId;
+            const itemsToPrint = targetId
+                ? catalogItems.filter(it => it.id === targetId)
+                : catalogItems;
+
+            if (itemsToPrint.length === 0) {
+                return `<div class="p-6 bg-white rounded-xl border border-slate-300 text-center text-xs text-slate-500">Belum ada item katalog untuk dicetak labelnya.</div>`;
+            }
+
+            const dimMap = {
+                '50x30': { w: '50mm', h: '30mm', cls: 'flex flex-wrap gap-3 justify-center' },
+                '60x40': { w: '60mm', h: '40mm', cls: 'flex flex-wrap gap-3 justify-center' },
+                'a4-grid': { w: '62mm', h: '36mm', cls: 'grid grid-cols-3 gap-2.5 bg-white p-4' }
+            };
+            const cfg = dimMap[sizeMode] || dimMap['50x30'];
+
+            const cards = itemsToPrint.map(it => `
+                <div style="width:${cfg.w}; min-height:${cfg.h};" class="bg-white border-2 border-slate-900 rounded-lg p-2 flex flex-col justify-between text-slate-900 shadow-xs">
+                    <div class="flex items-center justify-between border-b border-slate-300 pb-0.5 text-[9px] font-bold uppercase tracking-tight">
+                        <span class="truncate max-w-[65%]">${escapeHtml(compName)}</span>
+                        <span class="font-typewriter">${escapeHtml(it.no)}</span>
+                    </div>
+                    <div class="my-0.5">
+                        <div class="text-[11px] font-extrabold leading-tight truncate">${escapeHtml(it.label)}</div>
+                        ${it.desc ? `<div class="text-[9px] text-slate-600 truncate">${escapeHtml(it.desc)}</div>` : ''}
+                    </div>
+                    <div>
+                        <div class="text-xs font-typewriter font-extrabold text-right mb-0.5">Rp ${formatRupiah(it.price)}</div>
+                        ${generateBarcodeSVG(it.no)}
+                    </div>
+                </div>
+            `).join('');
+
+            return `<div class="${cfg.cls}">${cards}</div>`;
+        }
+
+        function printCatalogLabels(singleItemId = null) {
+            const html = buildCatalogLabelsHTML(singleItemId);
+            executePrintHTML(html, `@page { size: auto; margin: 6mm; }`);
+        }
+
+        // ==========================================
+        // 7. BUILDER HTML DOKUMEN NOTA & KUITANSI
+        // ==========================================
+        function buildNotaHTML(options = {}) {
+            const fs = currentFontSize || 12;
+            const showHeader = document.getElementById('show-company-header')?.checked ?? true;
+            const compName = document.getElementById('comp-name')?.value || 'TOKO MAJU JAYA';
+            const compCity = document.getElementById('comp-city')?.value || 'Jakarta';
+            const compAddress = document.getElementById('comp-address')?.value || '';
+
+            const notaNo = document.getElementById('nota-no')?.value || '-';
+            const notaDate = formatIndonesianDate(document.getElementById('nota-date')?.value || '');
+            const customer = document.getElementById('nota-customer')?.value || '....................';
+            const customerAddr = document.getElementById('nota-customer-addr')?.value || '';
+            const signer = document.getElementById('nota-signer')?.value || '....................';
+            const minRows = parseInt(document.getElementById('nota-min-rows')?.value || '10', 10);
+
+            const validItems = notaItems.filter(it => it.name && it.name.trim() !== '');
+            const fin = getNotaFinancialSummary();
+            const total = fin.grandTotal;
+
+            // Mode Struk Kasir Termal (58mm / 80mm)
+            if (options.thermalWidth) {
+                const w = options.thermalWidth;
+                const thermalFs = w === '58mm' ? Math.max(9, fs - 2) : Math.max(10, fs - 1);
+                const rowsHTML = validItems.length > 0
+                    ? validItems.map(it => {
+                        const sub = (Number(it.qty) || 0) * (Number(it.price) || 0);
+                        return `
+                            <div style="margin-bottom:4px; border-bottom:1px dashed #cbd5e1; padding-bottom:3px;">
+                                <div style="font-weight:700;">${escapeHtml(it.name)}</div>
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span>${it.qty} x ${formatRupiah(it.price)}</span>
+                                    <span style="font-weight:700;">${formatRupiah(sub)}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')
+                    : `<div style="text-align:center; padding:8px 0; color:#64748b;">(Belum ada item)</div>`;
+
+                return `
+                    <div style="width:${w}; background:#ffffff; color:#0f172a; padding:4mm; font-family:'Courier Prime', monospace; font-size:${thermalFs}px; line-height:1.35; box-sizing:border-box;" class="shadow-md">
+                        ${showHeader ? `
+                            <div style="text-align:center; border-bottom:1px dashed #0f172a; padding-bottom:6px; margin-bottom:6px;">
+                                <div style="font-weight:700; font-size:${thermalFs + 2}px;">${escapeHtml(compName)}</div>
+                                <div style="font-size:${Math.max(8, thermalFs - 1)}px;">${escapeHtml(compAddress)}</div>
+                            </div>
+                        ` : ''}
+                        <div style="text-align:center; font-weight:700; letter-spacing:1px; margin-bottom:6px;">NOTA KONTAN</div>
+                        <div style="font-size:${Math.max(9, thermalFs - 1)}px; margin-bottom:6px; border-bottom:1px dashed #0f172a; padding-bottom:5px;">
+                            <div>No   : ${escapeHtml(notaNo)}</div>
+                            <div>Tgl  : ${escapeHtml(notaDate)}</div>
+                            <div>Kpd  : ${escapeHtml(customer)} (${escapeHtml(fin.tierLabel)})</div>
+                        </div>
+                        <div>${rowsHTML}</div>
+                        <div style="border-top:1px dashed #0f172a; margin-top:6px; padding-top:4px; font-size:${Math.max(9, thermalFs - 1)}px;">
+                            <div style="display:flex; justify-content:space-between;">
+                                <span>Subtotal</span>
+                                <span>${formatRupiah(fin.subtotal)}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span>Diskon (${escapeHtml(fin.tierLabel)} ${fin.discountPercent}%)</span>
+                                <span>-${formatRupiah(fin.discountAmount)}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span>PPN (${fin.ppnPercent}%)</span>
+                                <span>+${formatRupiah(fin.ppnAmount)}</span>
+                            </div>
+                        </div>
+                        <div style="border-top:1.5px solid #0f172a; margin-top:4px; padding-top:5px; display:flex; justify-content:space-between; font-weight:700; font-size:${thermalFs + 1}px;">
+                            <span>TOTAL</span>
+                            <span>Rp ${formatRupiah(total)}</span>
+                        </div>
+                        <div style="text-align:center; margin-top:10px; font-size:${Math.max(8, thermalFs - 1)}px; border-top:1px dashed #94a3b8; padding-top:6px;">
+                            <div>Kasir: ${escapeHtml(signer)}</div>
+                            <div style="margin-top:2px;">Terima Kasih Atas Kunjungan Anda</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Mode Nota Standar (10,75 x 16,5 cm)
+            const totalRows = Math.max(minRows, validItems.length);
+            let tableRowsHTML = '';
+            for (let i = 0; i < totalRows; i++) {
+                const item = validItems[i];
+                if (item) {
+                    const sub = (Number(item.qty) || 0) * (Number(item.price) || 0);
+                    tableRowsHTML += `
+                        <tr style="border-bottom:1px solid #94a3b8;">
+                            <td style="border-right:1px solid #0f172a; padding:2px 4px; text-align:center; font-family:'Courier Prime',monospace;">${item.qty}</td>
+                            <td style="border-right:1px solid #0f172a; padding:2px 5px;">${escapeHtml(item.name)}</td>
+                            <td style="border-right:1px solid #0f172a; padding:2px 5px; text-align:right; font-family:'Courier Prime',monospace;">${formatRupiah(item.price)}</td>
+                            <td style="padding:2px 5px; text-align:right; font-family:'Courier Prime',monospace; font-weight:700;">${formatRupiah(sub)}</td>
+                        </tr>
+                    `;
+                } else {
+                    tableRowsHTML += `
+                        <tr style="border-bottom:1px solid #cbd5e1; height:${fs + 8}px;">
+                            <td style="border-right:1px solid #0f172a; padding:2px 4px;">&nbsp;</td>
+                            <td style="border-right:1px solid #0f172a; padding:2px 5px;">&nbsp;</td>
+                            <td style="border-right:1px solid #0f172a; padding:2px 5px;">&nbsp;</td>
+                            <td style="padding:2px 5px;">&nbsp;</td>
+                        </tr>
+                    `;
+                }
+            }
+
+            return `
+                <div style="width:107.5mm; min-height:165mm; background:#ffffff; color:#0f172a; padding:6mm 6.5mm; box-sizing:border-box; border:1.5px solid #0f172a; font-size:${fs}px; line-height:1.3;" class="shadow-lg flex flex-col justify-between">
+                    <div>
+                        ${showHeader ? `
+                            <div style="border-bottom:2px solid #0f172a; padding-bottom:4px; margin-bottom:6px;">
+                                <div style="font-weight:800; font-size:${fs + 2}px; letter-spacing:0.3px;">${escapeHtml(compName)}</div>
+                                <div style="font-size:${Math.max(9, fs - 2)}px; color:#334155;">${escapeHtml(compAddress)}</div>
+                            </div>
+                        ` : ''}
+
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px; margin-bottom:6px;">
+                            <div>
+                                <div style="font-weight:800; font-size:${fs + 3}px; text-decoration:underline; letter-spacing:0.5px;">NOTA KONTAN</div>
+                                <div style="font-family:'Courier Prime',monospace; font-weight:700; margin-top:2px;">No. ${escapeHtml(notaNo)}</div>
+                                <div style="font-size:${Math.max(9, fs - 2)}px; font-weight:700; margin-top:2px;">Kategori: ${escapeHtml(fin.tierLabel)}</div>
+                            </div>
+                            <div style="text-align:right; max-width:54%;">
+                                <div>${escapeHtml(compCity)}, ${escapeHtml(notaDate)}</div>
+                                <div style="margin-top:2px;">Kepada Yth.</div>
+                                <div style="font-weight:700; border-bottom:1px dotted #0f172a;">${escapeHtml(customer)}</div>
+                                ${customerAddr ? `<div style="font-size:${Math.max(9, fs - 2)}px; color:#475569;">${escapeHtml(customerAddr)}</div>` : ''}
+                            </div>
+                        </div>
+
+                        <table style="width:100%; border-collapse:collapse; border:1.5px solid #0f172a; font-size:${fs}px;">
+                            <thead>
+                                <tr style="background:#ffffff; border-bottom:1.5px solid #0f172a; font-weight:700;">
+                                    <th style="width:13%; border-right:1px solid #0f172a; padding:3px 2px; text-align:center;">Banyak</th>
+                                    <th style="width:43%; border-right:1px solid #0f172a; padding:3px 4px; text-align:left;">Nama Barang</th>
+                                    <th style="width:21%; border-right:1px solid #0f172a; padding:3px 4px; text-align:right;">Harga</th>
+                                    <th style="width:23%; padding:3px 4px; text-align:right;">Jumlah</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRowsHTML}
+                            </tbody>
+                            <tfoot>
+                                <tr style="border-top:1.5px solid #0f172a; background:#ffffff;">
+                                    <td colspan="3" style="border-right:1px solid #0f172a; padding:2.5px 6px; text-align:right; font-weight:600;">Subtotal Rp.</td>
+                                    <td style="padding:2.5px 5px; text-align:right; font-family:'Courier Prime',monospace; font-weight:600;">${formatRupiah(fin.subtotal)}</td>
+                                </tr>
+                                <tr style="border-top:1px solid #94a3b8; background:#ffffff;">
+                                    <td colspan="3" style="border-right:1px solid #0f172a; padding:2.5px 6px; text-align:right;">Diskon (${escapeHtml(fin.tierLabel)} ${fin.discountPercent}%) Rp.</td>
+                                    <td style="padding:2.5px 5px; text-align:right; font-family:'Courier Prime',monospace;">- ${formatRupiah(fin.discountAmount)}</td>
+                                </tr>
+                                <tr style="border-top:1px solid #94a3b8; background:#ffffff;">
+                                    <td colspan="3" style="border-right:1px solid #0f172a; padding:2.5px 6px; text-align:right;">PPN (${fin.ppnPercent}%) Rp.</td>
+                                    <td style="padding:2.5px 5px; text-align:right; font-family:'Courier Prime',monospace;">+ ${formatRupiah(fin.ppnAmount)}</td>
+                                </tr>
+                                <tr style="border-top:1.5px solid #0f172a; background:#ffffff; font-weight:800;">
+                                    <td colspan="3" style="border-right:1px solid #0f172a; padding:4px 6px; text-align:right;">Total Akhir Rp.</td>
+                                    <td style="padding:4px 5px; text-align:right; font-family:'Courier Prime',monospace; font-size:${fs + 1}px;">${formatRupiah(total)}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:10px; padding-top:4px;">
+                        <div style="text-align:center; width:42%;">
+                            <div>Tanda Terima,</div>
+                            <div style="height:34px;"></div>
+                            <div style="padding-top:2px;">( ............................ )</div>
+                        </div>
+                        <div style="text-align:center; width:46%;">
+                            <div>Hormat Kami,</div>
+                            <div style="height:34px;"></div>
+                            <div style="font-weight:700; text-decoration:underline;">${escapeHtml(signer)}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function buildKuitansiHTML(options = {}) {
+            const fs = currentFontSize || 12;
+            const model = currentKuitansiModel || 'modern-corp';
+            const theme = kuitansiColorThemes[currentKuitansiColor] || kuitansiColorThemes.plain;
+            const showHeader = document.getElementById('show-company-header')?.checked ?? true;
+            const compName = document.getElementById('comp-name')?.value || 'TOKO MAJU JAYA';
+            const compCity = document.getElementById('comp-city')?.value || 'Jakarta';
+            const compAddress = document.getElementById('comp-address')?.value || '';
+
+            const kuiNo = document.getElementById('kui-no')?.value || '-';
+            const kuiDate = formatIndonesianDate(document.getElementById('kui-date')?.value || '');
+            const kuiFrom = document.getElementById('kui-from')?.value || '....................';
+            const kuiAmount = Number(document.getElementById('kui-amount')?.value) || 0;
+            const kuiTerbilang = document.getElementById('kui-terbilang')?.value || formatTerbilangRupiah(kuiAmount);
+            const kuiPurpose = document.getElementById('kui-purpose')?.value || '';
+            const kuiReceiver = document.getElementById('kui-receiver')?.value || '....................';
+
+            const widthStyle = options.combinedMode ? 'width:188mm;' : 'width:100%; max-width:215mm;';
+
+            // Model 2: Klasik (Kolom Samping Kiri)
+            if (model === 'classic-plain') {
+                return `
+                    <div style="${widthStyle} min-height:74mm; background:${theme.bg}; color:#0f172a; border:1.5px solid ${theme.border}; box-sizing:border-box; font-size:${fs}px; line-height:1.3;" class="${theme.sheetClass} shadow-lg flex overflow-hidden">
+                        <!-- Kolom Label Kiri -->
+                        <div style="width:16mm; border-right:1.5px solid ${theme.border}; background:${theme.sideBg};" class="shrink-0 flex flex-col items-center justify-center p-1">
+                            <div style="writing-mode:vertical-rl; transform:rotate(180deg); font-weight:900; letter-spacing:2.5px; font-size:${fs}px; color:${theme.accent};">
+                                KUITANSI
+                            </div>
+                        </div>
+
+                        <!-- Isi Utama Kuitansi -->
+                        <div style="flex:1; padding:4.5mm 5.5mm; display:flex; flex-direction:column; justify-content:space-between; background:${theme.bg};">
+                            <div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1.5px solid ${theme.border}; padding-bottom:3px; margin-bottom:5px;">
+                                    <div>
+                                        ${showHeader
+                                            ? `<div style="font-weight:800; font-size:${fs + 1}px; color:${theme.accent};">${escapeHtml(compName)}</div><div style="font-size:${Math.max(9, fs - 2)}px; color:${theme.subText};">${escapeHtml(compAddress)}</div>`
+                                            : `<div style="font-weight:800; font-size:${fs + 2}px; color:${theme.accent};">KUITANSI PEMBAYARAN</div>`}
+                                    </div>
+                                    <div style="font-family:'Courier Prime',monospace; font-weight:700; background:${theme.boxBg}; color:${theme.accent}; padding:2px 7px; border:1px solid ${theme.border};">
+                                        No. ${escapeHtml(kuiNo)}
+                                    </div>
+                                </div>
+
+                                <table style="width:100%; border-collapse:collapse; font-size:${fs}px;">
+                                    <tr>
+                                        <td style="width:28%; padding:3px 0; font-weight:600; vertical-align:top;">Sudah terima dari</td>
+                                        <td style="width:2%; padding:3px 0; vertical-align:top;">:</td>
+                                        <td style="padding:3px 5px; font-weight:700; border-bottom:1px dotted ${theme.border};">${escapeHtml(kuiFrom)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:4px 0; font-weight:600; vertical-align:top;">Banyaknya uang</td>
+                                        <td style="padding:4px 0; vertical-align:top;">:</td>
+                                        <td style="padding:4px 7px; border:1px solid ${theme.border}; background:${theme.boxBg}; font-style:italic; font-weight:700;">
+                                            # ${escapeHtml(kuiTerbilang)} #
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:4px 0; font-weight:600; vertical-align:top;">Untuk pembayaran</td>
+                                        <td style="padding:4px 0; vertical-align:top;">:</td>
+                                        <td style="padding:2px 5px;" class="kuitansi-lined-text">
+                                            ${escapeHtml(kuiPurpose)}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:8px;">
+                                <div style="border:1.5px solid ${theme.border}; background:${theme.boxBg}; color:${theme.accent}; padding:4px 11px; font-family:'Courier Prime',monospace; font-weight:800; font-size:${fs + 1}px; transform:skewX(-6deg);">
+                                    <span style="display:inline-block; transform:skewX(6deg);">Jumlah Rp. ${formatRupiah(kuiAmount)},-</span>
+                                </div>
+                                <div style="text-align:center; min-width:36%;">
+                                    <div>${escapeHtml(compCity)}, ${escapeHtml(kuiDate)}</div>
+                                    <div style="height:26px;"></div>
+                                    <div style="font-weight:700; text-decoration:underline;">${escapeHtml(kuiReceiver)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Model 1 (Default): Formal Bersih
+            return `
+                <div style="${widthStyle} min-height:74mm; background:${theme.bg}; color:#0f172a; border:1.5px solid ${theme.border}; border-radius:4px; padding:5mm 6mm; box-sizing:border-box; font-size:${fs}px; line-height:1.35;" class="${theme.sheetClass} shadow-lg flex flex-col justify-between">
+                    <div>
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1.5px solid ${theme.border}; padding-bottom:4px; margin-bottom:6px;">
+                            <div>
+                                ${showHeader ? `<div style="font-weight:800; font-size:${fs + 1}px; color:${theme.accent};">${escapeHtml(compName)}</div><div style="font-size:${Math.max(9, fs - 2)}px; color:${theme.subText};">${escapeHtml(compAddress)}</div>` : ''}
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-weight:900; font-size:${fs + 3}px; letter-spacing:1.5px; color:${theme.accent};">KUITANSI</div>
+                                <div style="font-family:'Courier Prime',monospace; font-weight:700; color:${theme.accent};">No: ${escapeHtml(kuiNo)}</div>
+                            </div>
+                        </div>
+
+                        <table style="width:100%; border-collapse:collapse; font-size:${fs}px;">
+                            <tr>
+                                <td style="width:27%; padding:3px 0; font-weight:600; vertical-align:top;">Sudah Terima Dari</td>
+                                <td style="width:2%; padding:3px 0; vertical-align:top;">:</td>
+                                <td style="padding:3px 6px; font-weight:700; border-bottom:1px dotted ${theme.border};">${escapeHtml(kuiFrom)}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:4px 0; font-weight:600; vertical-align:top;">Banyaknya Uang</td>
+                                <td style="padding:4px 0; vertical-align:top;">:</td>
+                                <td style="padding:4px 8px; background:${theme.boxBg}; border:1px solid ${theme.border}; font-style:italic; font-weight:700;"># ${escapeHtml(kuiTerbilang)} #</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:4px 0; font-weight:600; vertical-align:top;">Untuk Pembayaran</td>
+                                <td style="padding:4px 0; vertical-align:top;">:</td>
+                                <td style="padding:4px 6px; border-bottom:1px dotted ${theme.border};">${escapeHtml(kuiPurpose)}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:8px;">
+                        <div style="border:1.5px solid ${theme.border}; background:${theme.boxBg}; color:${theme.accent}; padding:5px 12px; font-family:'Courier Prime',monospace; font-weight:800; font-size:${fs + 2}px; transform:skewX(-6deg);">
+                            <span style="display:inline-block; transform:skewX(6deg);">Jumlah Rp. ${formatRupiah(kuiAmount)},-</span>
+                        </div>
+                        <div style="text-align:center; min-width:36%;">
+                            <div>${escapeHtml(compCity)}, ${escapeHtml(kuiDate)}</div>
+                            <div style="height:28px;"></div>
+                            <div style="font-weight:700; text-decoration:underline;">${escapeHtml(kuiReceiver)}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPreview() {
+            const area = document.getElementById('print-area');
+            const dimLabel = document.getElementById('preview-dimension-label');
+            if (!area) return;
+
+            if (activeDocType === 'nota') {
+                const format = document.getElementById('nota-paper-format')?.value || 'standard';
+                if (format === 'thermal-58mm') {
+                    if (dimLabel) dimLabel.textContent = 'Struk Termal 58mm';
+                    area.innerHTML = buildNotaHTML({ thermalWidth: '58mm' });
+                } else if (format === 'thermal-80mm') {
+                    if (dimLabel) dimLabel.textContent = 'Struk Termal 80mm';
+                    area.innerHTML = buildNotaHTML({ thermalWidth: '80mm' });
+                } else {
+                    if (dimLabel) dimLabel.textContent = 'Nota Standar (10,75 × 16,5 cm)';
+                    area.innerHTML = buildNotaHTML();
+                }
+            } else if (activeDocType === 'kuitansi') {
+                const colorLabel = (kuitansiColorThemes[currentKuitansiColor] || kuitansiColorThemes.plain).label;
+                if (dimLabel) dimLabel.textContent = `Kuitansi ${colorLabel} (21,5 × 7,5 cm)`;
+                area.innerHTML = buildKuitansiHTML();
+            } else if (activeDocType === 'katalog') {
+                const sizeMode = document.getElementById('label-paper-size')?.value || '50x30';
+                if (dimLabel) dimLabel.textContent = `Pratinjau Stiker Label (${sizeMode})`;
+                area.innerHTML = buildCatalogLabelsHTML();
+            }
+        }
+
+        // ==========================================
+        // 8. FUNGSI PENCETAKAN (STANDAR, TERMAL, GABUNGAN)
+        // ==========================================
+        function openFallbackPrintWindow(innerHTML, pageRuleCSS = '') {
+            try {
+                const printWin = window.open('', '_blank', 'width=900,height=720');
+                if (!printWin) {
+                    showToast('Pop-up cetak diblokir browser. Izinkan pop-up atau gunakan tombol Kirim JPG.', 'error');
+                    return;
+                }
+                const styles = Array.from(document.querySelectorAll('style'))
+                    .map(s => s.outerHTML)
+                    .join('\n');
+                printWin.document.open();
+                printWin.document.write(`
+                    <!DOCTYPE html>
+                    <html lang="id">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>Cetak Dokumen - DocuAdmin Pro</title>
+                        <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
+                        ${styles}
+                        <style>
+                            body { margin: 0; padding: 0; background: #ffffff; display: flex; justify-content: center; }
+                            @media print {
+                                ${pageRuleCSS}
+                                body { margin: 0 !important; padding: 0 !important; }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        ${innerHTML}
+                        <script>
+                            window.onload = function() {
+                                setTimeout(function() {
+                                    window.focus();
+                                    window.print();
+                                }, 250);
+                            };
+                        <\/script>
+                    </body>
+                    </html>
+                `);
+                printWin.document.close();
+            } catch (err) {
+                console.error('Fallback print gagal:', err);
+                showToast('Gagal membuka jendela cetak. Gunakan fitur Kirim JPG untuk mencetak gambar.', 'error');
+            }
+        }
+
+        function executePrintHTML(innerHTML, pageRuleCSS = '') {
+            const printRoot = document.getElementById('direct-print-root');
+            if (!printRoot) return;
+
+            let dynamicStyle = document.getElementById('dynamic-print-page-style');
+            if (!dynamicStyle) {
+                dynamicStyle = document.createElement('style');
+                dynamicStyle.id = 'dynamic-print-page-style';
+                document.head.appendChild(dynamicStyle);
+            }
+            dynamicStyle.textContent = `@media print { ${pageRuleCSS} }`;
+
+            printRoot.innerHTML = innerHTML;
+            showToast('Menyiapkan tampilan cetak...', 'info');
+
+            setTimeout(() => {
+                let printed = false;
+                try {
+                    window.focus();
+                    if (typeof document.execCommand === 'function') {
+                        printed = document.execCommand('print', false, null);
+                    }
+                    if (!printed) {
+                        window.print();
+                        printed = true;
+                    }
+                } catch (e) {
+                    printed = false;
+                }
+
+                // Jika berjalan di dalam iframe sandbox yang memblokir window.print(), buka jendela cetak khusus
+                if (!printed || window.self !== window.top) {
+                    openFallbackPrintWindow(innerHTML, pageRuleCSS);
+                }
+            }, 150);
+        }
+
+        function printDocument() {
+            if (activeDocType === 'katalog') {
+                printCatalogLabels();
+                return;
+            }
+            if (activeDocType === 'nota') {
+                const format = document.getElementById('nota-paper-format')?.value || 'standard';
+                if (format === 'thermal-58mm') {
+                    executePrintHTML(buildNotaHTML({ thermalWidth: '58mm' }), `@page { size: 58mm auto; margin: 0; }`);
+                } else if (format === 'thermal-80mm') {
+                    executePrintHTML(buildNotaHTML({ thermalWidth: '80mm' }), `@page { size: 80mm auto; margin: 0; }`);
+                } else {
+                    executePrintHTML(
+                        `<div style="padding:4mm;">${buildNotaHTML()}</div>`,
+                        `@page { size: 116mm 175mm; margin: 0; }`
+                    );
+                }
+            } else {
+                executePrintHTML(
+                    `<div style="padding:6mm; display:flex; justify-content:center;">${buildKuitansiHTML()}</div>`,
+                    `@page { size: A4 landscape; margin: 0; }`
+                );
+            }
+        }
+
+        function printThermalNota() {
+            const size = document.getElementById('thermal-paper-size')?.value || '80mm';
+            executePrintHTML(
+                buildNotaHTML({ thermalWidth: size }),
+                `@page { size: ${size} auto; margin: 0; }`
+            );
+        }
+
+        function printCombinedDocument() {
+            const combinedHTML = `
+                <div style="width:210mm; padding:6mm 10mm; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; gap:5mm;">
+                    <div style="display:flex; justify-content:center; width:100%;">
+                        ${buildNotaHTML()}
+                    </div>
+                    <div style="width:188mm; border-top:1.5px dashed #64748b; text-align:center; font-size:9px; color:#64748b; padding-top:2px;">
+                        ✂ ------------------------------------ Potong di sini ------------------------------------ ✂
+                    </div>
+                    <div style="display:flex; justify-content:center; width:100%;">
+                        ${buildKuitansiHTML({ combinedMode: true })}
+                    </div>
+                </div>
+            `;
+            executePrintHTML(combinedHTML, `@page { size: A4 portrait; margin: 0; }`);
+        }
+
+        // ==========================================
+        // 10. RIWAYAT DOKUMEN & MODAL TUTORIAL
+        // ==========================================
+        function closeJpgShareModal() {
+            const modal = document.getElementById('jpg-share-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function downloadGeneratedJpg() {
+            if (!generatedJpgState.dataUrl) {
+                showToast('Gambar JPG belum siap diunduh.', 'error');
+                return;
+            }
+            const link = document.createElement('a');
+            link.href = generatedJpgState.dataUrl;
+            link.download = generatedJpgState.fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            showToast(`File ${generatedJpgState.fileName} berhasil diunduh.`, 'success');
+        }
+
+        async function copyJpgToClipboard() {
+            if (!generatedJpgState.dataUrl) {
+                showToast('Gambar belum tersedia.', 'error');
+                return;
+            }
+            try {
+                if (navigator.clipboard && window.ClipboardItem) {
+                    const img = new Image();
+                    img.src = generatedJpgState.dataUrl;
+                    await new Promise(resolve => { img.onload = resolve; });
+                    const pngCanvas = document.createElement('canvas');
+                    pngCanvas.width = img.naturalWidth;
+                    pngCanvas.height = img.naturalHeight;
+                    pngCanvas.getContext('2d').drawImage(img, 0, 0);
+                    const pngBlob = await new Promise(resolve => pngCanvas.toBlob(resolve, 'image/png'));
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': pngBlob })
+                    ]);
+                    showToast('Gambar disalin! Tekan Ctrl+V di WhatsApp Web / Chat untuk mengirim.', 'success');
+                    return;
+                }
+            } catch (e) {
+                // Fallback unduh jika clipboard gambar dibatasi browser
+            }
+            downloadGeneratedJpg();
+            showToast('Browser membatasi salin gambar langsung; file JPG telah diunduh.', 'info');
+        }
+
+        async function shareJpgNative() {
+            if (!generatedJpgState.blob) {
+                showToast('Gambar belum siap dibagikan.', 'error');
+                return;
+            }
+            const file = new File([generatedJpgState.blob], generatedJpgState.fileName, { type: 'image/jpeg' });
+            const captionText = document.getElementById('jpg-share-caption')?.value || generatedJpgState.docTitle;
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        title: generatedJpgState.docTitle,
+                        text: captionText,
+                        files: [file]
+                    });
+                    showToast('Dokumen berhasil dibagikan.', 'success');
+                    return;
+                } catch (err) {
+                    if (err && err.name === 'AbortError') return;
+                }
+            }
+            downloadGeneratedJpg();
+            showToast('Perangkat tidak mendukung menu bagikan langsung; file JPG otomatis diunduh.', 'info');
+        }
+
+        async function shareJpgViaWhatsApp() {
+            const captionText = document.getElementById('jpg-share-caption')?.value || '';
+            const file = generatedJpgState.blob
+                ? new File([generatedJpgState.blob], generatedJpgState.fileName, { type: 'image/jpeg' })
+                : null;
+
+            // Di HP / perangkat yang mendukung Web Share file langsung ke WhatsApp
+            if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        title: generatedJpgState.docTitle,
+                        text: captionText,
+                        files: [file]
+                    });
+                    return;
+                } catch (err) {
+                    if (err && err.name === 'AbortError') return;
+                }
+            }
+
+            // Di Desktop: salin gambar ke clipboard + unduh JPG + buka WhatsApp Web dengan pesan terisi
+            await copyJpgToClipboard();
+            const waUrl = `https://wa.me/?text=${encodeURIComponent(captionText)}`;
+            window.open(waUrl, '_blank', 'noopener,noreferrer');
+            showToast('WhatsApp dibuka! Tinggal tekan Ctrl+V (Tempel) atau lampirkan file JPG.', 'success');
+        }
+
+        async function sendDocumentAsJpg(docType) {
+            if (typeof html2canvas === 'undefined') {
+                showToast('Pustaka konversi gambar belum siap, periksa koneksi internet.', 'error');
+                return;
+            }
+
+            const isNota = docType === 'nota';
+            const compName = document.getElementById('comp-name')?.value || 'Toko Kami';
+            const rawNo = isNota
+                ? (document.getElementById('nota-no')?.value || 'Nota-Kontan')
+                : (document.getElementById('kui-no')?.value || 'Kwitansi-Kontan');
+            const customerName = isNota
+                ? (document.getElementById('nota-customer')?.value || 'Pelanggan')
+                : (document.getElementById('kui-from')?.value || 'Pelanggan');
+            const totalNominal = isNota
+                ? updateNotaTotalDisplay()
+                : (Number(document.getElementById('kui-amount')?.value) || 0);
+            const docDate = formatIndonesianDate(
+                document.getElementById(isNota ? 'nota-date' : 'kui-date')?.value || ''
+            );
+
+            const safeNo = rawNo.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const fileName = isNota ? `Nota_Kontan_${safeNo}.jpg` : `Kwitansi_Kontan_${safeNo}.jpg`;
+            const docTitle = isNota ? `Nota Kontan ${rawNo}` : `Kwitansi Kontan ${rawNo}`;
+
+            // Buka modal pratinjau kirim JPG
+            const modal = document.getElementById('jpg-share-modal');
+            const titleEl = document.getElementById('jpg-modal-title');
+            const subEl = document.getElementById('jpg-modal-subtitle');
+            const loadingEl = document.getElementById('jpg-preview-loading');
+            const imgEl = document.getElementById('jpg-preview-img');
+            const captionEl = document.getElementById('jpg-share-caption');
+            const infoEl = document.getElementById('jpg-file-info');
+
+            if (titleEl) titleEl.textContent = isNota ? 'Kirim Nota Kontan (File JPG)' : 'Kirim Kwitansi Kontan (File JPG)';
+            if (subEl) subEl.textContent = `Nomor: ${rawNo} • Kepada: ${customerName}`;
+            if (loadingEl) loadingEl.classList.remove('hidden');
+            if (imgEl) imgEl.classList.add('hidden');
+            if (captionEl) {
+                captionEl.value = isNota
+                    ? `Halo *${customerName}*,\nBerikut kami kirimkan *Nota Kontan* dari *${compName}*:\n• No. Nota: ${rawNo}\n• Tanggal: ${docDate}\n• Total: *Rp ${formatRupiah(totalNominal)}*\n\nTerima kasih.`
+                    : `Halo *${customerName}*,\nBerikut kami kirimkan *Kwitansi Pembayaran* dari *${compName}*:\n• No. Kwitansi: ${rawNo}\n• Tanggal: ${docDate}\n• Nominal: *Rp ${formatRupiah(totalNominal)}*\n\nTerima kasih.`;
+            }
+
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+
+            // Render dokumen target di container off-screen berlatar putih bersih
+            const staging = document.createElement('div');
+            staging.style.position = 'fixed';
+            staging.style.left = '-9999px';
+            staging.style.top = '0';
+            staging.style.background = '#ffffff';
+            staging.style.padding = '10px';
+            staging.style.zIndex = '-1';
+
+            if (isNota) {
+                const paperFormat = document.getElementById('nota-paper-format')?.value || 'standard';
+                if (paperFormat === 'thermal-58mm') {
+                    staging.innerHTML = buildNotaHTML({ thermalWidth: '58mm' });
+                } else if (paperFormat === 'thermal-80mm') {
+                    staging.innerHTML = buildNotaHTML({ thermalWidth: '80mm' });
+                } else {
+                    staging.innerHTML = buildNotaHTML();
+                }
+            } else {
+                staging.innerHTML = buildKuitansiHTML();
+            }
+
+            document.body.appendChild(staging);
+
+            try {
+                if (document.fonts && document.fonts.ready) {
+                    await document.fonts.ready;
+                }
+                const targetEl = staging.firstElementChild || staging;
+                const canvas = await html2canvas(targetEl, {
+                    scale: 3,
+                    backgroundColor: '#ffffff',
+                    useCORS: true,
+                    logging: false
+                });
+
+                const jpgDataUrl = canvas.toDataURL('image/jpeg', 0.96);
+                const res = await fetch(jpgDataUrl);
+                const blob = await res.blob();
+
+                generatedJpgState = {
+                    dataUrl: jpgDataUrl,
+                    blob: blob,
+                    fileName: fileName,
+                    docTitle: docTitle,
+                    docType: docType
+                };
+
+                if (imgEl) {
+                    imgEl.src = jpgDataUrl;
+                    imgEl.classList.remove('hidden');
+                }
+                if (loadingEl) loadingEl.classList.add('hidden');
+                if (infoEl) {
+                    const kb = Math.max(1, Math.round(blob.size / 1024));
+                    infoEl.textContent = `${fileName} (${kb} KB)`;
+                }
+            } catch (err) {
+                console.error('Gagal membuat file JPG:', err);
+                closeJpgShareModal();
+                showToast('Gagal mengonversi dokumen ke file JPG.', 'error');
+            } finally {
+                staging.remove();
+            }
+        }
+
+        function toggleHistoryModal() {
+            const modal = document.getElementById('history-modal');
+            if (!modal) return;
+            const isHidden = modal.classList.contains('hidden');
+            if (isHidden) {
+                renderHistoryList();
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function toggleTutorialModal() {
+            const modal = document.getElementById('tutorial-modal');
+            if (!modal) return;
+            const isHidden = modal.classList.contains('hidden');
+            if (isHidden) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function saveCurrentDocument() {
+            const now = new Date();
+            const timestamp = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            const record = {
+                id: Date.now(),
+                type: activeDocType,
+                savedAt: timestamp,
+                compName: document.getElementById('comp-name')?.value || '',
+                compCity: document.getElementById('comp-city')?.value || '',
+                compAddress: document.getElementById('comp-address')?.value || '',
+                showHeader: document.getElementById('show-company-header')?.checked ?? true,
+                nota: {
+                    no: document.getElementById('nota-no')?.value || '',
+                    date: document.getElementById('nota-date')?.value || '',
+                    customer: document.getElementById('nota-customer')?.value || '',
+                    customerAddr: document.getElementById('nota-customer-addr')?.value || '',
+                    buyerTier: document.getElementById('nota-buyer-tier')?.value || 'umum',
+                    discountPercent: Number(document.getElementById('nota-discount-percent')?.value) || 0,
+                    ppnPercent: Number(document.getElementById('nota-ppn-percent')?.value) || 0,
+                    signer: document.getElementById('nota-signer')?.value || '',
+                    minRows: document.getElementById('nota-min-rows')?.value || '10',
+                    paperFormat: document.getElementById('nota-paper-format')?.value || 'standard',
+                    items: JSON.parse(JSON.stringify(notaItems)),
+                    total: updateNotaTotalDisplay()
+                },
+                kuitansi: {
+                    model: currentKuitansiModel,
+                    color: currentKuitansiColor,
+                    no: document.getElementById('kui-no')?.value || '',
+                    date: document.getElementById('kui-date')?.value || '',
+                    from: document.getElementById('kui-from')?.value || '',
+                    amount: Number(document.getElementById('kui-amount')?.value) || 0,
+                    terbilang: document.getElementById('kui-terbilang')?.value || '',
+                    purpose: document.getElementById('kui-purpose')?.value || '',
+                    receiver: document.getElementById('kui-receiver')?.value || ''
+                }
+            };
+
+            savedDocuments.unshift(record);
+            const badge = document.getElementById('history-badge');
+            if (badge) badge.textContent = savedDocuments.length;
+            showToast(`Dokumen ${activeDocType === 'nota' ? 'Nota Kontan' : 'Kuitansi'} berhasil disimpan ke Riwayat.`, 'success');
+        }
+
+        function renderHistoryList() {
+            const listEl = document.getElementById('history-list');
+            if (!listEl) return;
+
+            if (savedDocuments.length === 0) {
+                listEl.innerHTML = `
+                    <div class="text-center py-10 text-slate-400">
+                        <p class="text-sm font-semibold text-slate-600">Belum ada dokumen tersimpan</p>
+                        <p class="text-xs mt-1">Klik tombol <strong>Simpan</strong> di bilah atas untuk menyimpan dokumen saat ini.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            listEl.innerHTML = savedDocuments.map(doc => {
+                const isNota = doc.type === 'nota';
+                const title = isNota ? `Nota Kontan • ${escapeHtml(doc.nota.no || '-')}` : `Kuitansi • ${escapeHtml(doc.kuitansi.no || '-')}`;
+                const party = isNota ? (doc.nota.customer || 'Pelanggan Umum') : (doc.kuitansi.from || 'Pihak Pembayar');
+                const amount = isNota ? doc.nota.total : doc.kuitansi.amount;
+                const badgeClass = isNota ? 'bg-sky-100 text-sky-800 border-sky-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200';
+
+                return `
+                    <div class="border border-slate-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 hover:border-sky-300 transition bg-white">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[11px] font-bold px-2 py-0.5 rounded border ${badgeClass}">${isNota ? 'NOTA' : 'KUITANSI'}</span>
+                                <span class="font-bold text-sm text-slate-800">${title}</span>
+                                <span class="text-[11px] text-slate-400">• ${doc.savedAt}</span>
+                            </div>
+                            <div class="text-xs text-slate-600 mt-1">
+                                Pihak: <strong>${escapeHtml(party)}</strong> • Nominal: <strong class="text-slate-900">Rp ${formatRupiah(amount)}</strong>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="loadHistoryDocument(${doc.id})" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold transition">
+                                Muat Data
+                            </button>
+                            <button type="button" onclick="deleteHistoryDocument(${doc.id})" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition" title="Hapus riwayat">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function loadHistoryDocument(id) {
+            const doc = savedDocuments.find(d => d.id === id);
+            if (!doc) return;
+
+            document.getElementById('comp-name').value = doc.compName;
+            document.getElementById('comp-city').value = doc.compCity;
+            document.getElementById('comp-address').value = doc.compAddress;
+            document.getElementById('show-company-header').checked = doc.showHeader;
+
+            document.getElementById('nota-no').value = doc.nota.no;
+            document.getElementById('nota-date').value = doc.nota.date;
+            document.getElementById('nota-customer').value = doc.nota.customer;
+            document.getElementById('nota-customer-addr').value = doc.nota.customerAddr;
+            if (document.getElementById('nota-buyer-tier')) document.getElementById('nota-buyer-tier').value = doc.nota.buyerTier || 'umum';
+            if (document.getElementById('nota-discount-percent')) document.getElementById('nota-discount-percent').value = doc.nota.discountPercent ?? 0;
+            if (document.getElementById('nota-ppn-percent')) document.getElementById('nota-ppn-percent').value = doc.nota.ppnPercent ?? 11;
+            document.getElementById('nota-signer').value = doc.nota.signer;
+            document.getElementById('nota-min-rows').value = doc.nota.minRows;
+            document.getElementById('nota-paper-format').value = doc.nota.paperFormat;
+            notaItems = JSON.parse(JSON.stringify(doc.nota.items));
+
+            document.getElementById('kui-no').value = doc.kuitansi.no;
+            document.getElementById('kui-date').value = doc.kuitansi.date;
+            document.getElementById('kui-from').value = doc.kuitansi.from;
+            document.getElementById('kui-amount').value = doc.kuitansi.amount;
+            document.getElementById('kui-terbilang').value = doc.kuitansi.terbilang;
+            document.getElementById('kui-purpose').value = doc.kuitansi.purpose;
+            document.getElementById('kui-receiver').value = doc.kuitansi.receiver;
+
+            setKuitansiModel(doc.kuitansi.model || 'modern-corp');
+            setKuitansiColor(doc.kuitansi.color || 'plain');
+            renderNotaItemsForm();
+            switchDocType(doc.type);
+            toggleHistoryModal();
+            showToast('Data riwayat berhasil dimuat kembali.', 'success');
+        }
+
+        function deleteHistoryDocument(id) {
+            savedDocuments = savedDocuments.filter(d => d.id !== id);
+            const badge = document.getElementById('history-badge');
+            if (badge) badge.textContent = savedDocuments.length;
+            renderHistoryList();
+            showToast('Item riwayat dihapus.', 'info');
+        }
+
+        // ==========================================
+        // 10B. SCANNER BARCODE / QR INPUT KATALOG
+        // ==========================================
+        function setScanTargetMode(mode) {
+            scanTargetMode = mode;
+            const btnKat = document.getElementById('scan-target-katalog');
+            const btnNota = document.getElementById('scan-target-nota');
+            const subEl = document.getElementById('scan-mode-subtitle');
+            const shopCtrl = document.getElementById('scan-shopping-controls');
+            const cartSummary = document.getElementById('scan-cart-summary');
+
+            if (btnKat && btnNota) {
+                if (mode === 'katalog') {
+                    btnKat.className = 'py-1.5 px-2.5 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-xs transition';
+                    btnNota.className = 'py-1.5 px-2.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 transition';
+                    if (subEl) subEl.textContent = 'Kode hasil scan akan mengisi No. / Kode Item Katalog';
+                    if (shopCtrl) shopCtrl.classList.add('hidden');
+                    if (cartSummary) cartSummary.classList.add('hidden');
+                } else {
+                    btnNota.className = 'py-1.5 px-2.5 rounded-lg text-xs font-bold bg-sky-600 text-white shadow-xs transition';
+                    btnKat.className = 'py-1.5 px-2.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 transition';
+                    if (subEl) subEl.textContent = 'Mode Kasir: Scan barang beruntun otomatis tambah Qty ke Nota';
+                    if (shopCtrl) shopCtrl.classList.remove('hidden');
+                    if (cartSummary) cartSummary.classList.remove('hidden');
+                    renderScanCartSummary();
+                }
+            }
+        }
+
+        function renderScanCartSummary() {
+            const countEl = document.getElementById('scan-cart-count');
+            const totalEl = document.getElementById('scan-cart-total');
+            const listEl = document.getElementById('scan-cart-list');
+            const valid = notaItems.filter(it => it.name && it.name.trim() !== '');
+            const totalQty = valid.reduce((s, it) => s + (Number(it.qty) || 0), 0);
+            const totalPrice = valid.reduce((s, it) => s + ((Number(it.qty) || 0) * (Number(it.price) || 0)), 0);
+
+            if (countEl) countEl.textContent = totalQty;
+            if (totalEl) totalEl.textContent = formatRupiah(totalPrice);
+            if (!listEl) return;
+
+            if (valid.length === 0) {
+                listEl.innerHTML = `<div class="text-center text-slate-400 py-2">Belum ada barang di nota. Silakan scan barcode barang.</div>`;
+                return;
+            }
+
+            listEl.innerHTML = valid.map(it => `
+                <div class="flex items-center justify-between gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
+                    <span class="font-semibold text-slate-800 truncate flex-1">${escapeHtml(it.name)}</span>
+                    <span class="font-mono font-bold text-sky-700 shrink-0">${it.qty}x</span>
+                    <span class="font-typewriter font-bold text-slate-900 shrink-0">Rp ${formatRupiah((Number(it.qty) || 0) * (Number(it.price) || 0))}</span>
+                </div>
+            `).join('');
+        }
+
+        function addOrIncrementScannedCatalogToNota(catalogItem) {
+            const fullName = catalogItem.desc ? `${catalogItem.label} (${catalogItem.desc})` : catalogItem.label;
+            const existingRow = notaItems.find(
+                row => row.name && row.name.trim().toLowerCase() === fullName.trim().toLowerCase()
+            );
+
+            if (existingRow) {
+                existingRow.qty = (Number(existingRow.qty) || 0) + 1;
+                renderNotaItemsForm();
+                renderPreview();
+                renderScanCartSummary();
+                showToast(`+1 Qty: "${catalogItem.label}" (Total: ${existingRow.qty}x)`, 'success');
+                return;
+            }
+
+            addCatalogToNota(catalogItem.id);
+            renderPreview();
+            renderScanCartSummary();
+        }
+
+        function openScanCatalogModal(mode = 'katalog') {
+            const modal = document.getElementById('scan-modal');
+            if (!modal) return;
+            setScanTargetMode(mode);
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            const inputEl = document.getElementById('scan-manual-input');
+            if (inputEl) {
+                inputEl.value = '';
+                setTimeout(() => inputEl.focus(), 100);
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function stopCameraScanner() {
+            if (scanLoopTimer) {
+                clearInterval(scanLoopTimer);
+                scanLoopTimer = null;
+            }
+            if (scanStream) {
+                scanStream.getTracks().forEach(track => track.stop());
+                scanStream = null;
+            }
+            const videoEl = document.getElementById('scan-video');
+            const placeholderEl = document.getElementById('scan-placeholder');
+            const reticleEl = document.getElementById('scan-reticle');
+            if (videoEl) {
+                videoEl.srcObject = null;
+                videoEl.classList.add('hidden');
+            }
+            if (placeholderEl) placeholderEl.classList.remove('hidden');
+            if (reticleEl) reticleEl.classList.add('hidden');
+        }
+
+        function closeScanCatalogModal() {
+            stopCameraScanner();
+            const modal = document.getElementById('scan-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        async function startCameraScanner() {
+            const videoEl = document.getElementById('scan-video');
+            const placeholderEl = document.getElementById('scan-placeholder');
+            const reticleEl = document.getElementById('scan-reticle');
+            const statusEl = document.getElementById('scan-camera-status');
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                if (statusEl) statusEl.textContent = 'Kamera tidak tersedia di peramban ini. Gunakan Scanner USB atau ketik manual.';
+                showToast('Perangkat tidak mendukung akses kamera.', 'error');
+                return;
+            }
+
+            try {
+                if (statusEl) statusEl.textContent = 'Membuka kamera...';
+                scanStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                if (videoEl) {
+                    videoEl.srcObject = scanStream;
+                    videoEl.classList.remove('hidden');
+                }
+                if (placeholderEl) placeholderEl.classList.add('hidden');
+                if (reticleEl) reticleEl.classList.remove('hidden');
+
+                if ('BarcodeDetector' in window) {
+                    const detector = new window.BarcodeDetector({
+                        formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'qr_code', 'upc_a', 'upc_e']
+                    });
+                    if (statusEl) statusEl.textContent = 'Arahkan barcode / QR code barang ke dalam kotak bidik...';
+                    scanLoopTimer = setInterval(async () => {
+                        if (!videoEl || videoEl.readyState < 2) return;
+                        try {
+                            const codes = await detector.detect(videoEl);
+                            if (codes && codes.length > 0 && codes[0].rawValue) {
+                                const detectedVal = codes[0].rawValue.trim();
+                                const now = Date.now();
+                                if (detectedVal === lastScanCode && (now - lastScanTimestamp) < 1600) {
+                                    return;
+                                }
+                                lastScanCode = detectedVal;
+                                lastScanTimestamp = now;
+                                processScannedCode(detectedVal);
+                            }
+                        } catch (e) {
+                            // Abaikan frame yang gagal didekode
+                        }
+                    }, 400);
+                } else {
+                    if (statusEl) {
+                        statusEl.textContent = 'Kamera aktif (deteksi otomatis browser terbatas). Anda juga dapat mengetik kode atau memakai Scanner USB.';
+                    }
+                }
+            } catch (err) {
+                console.error('Error kamera:', err);
+                if (statusEl) statusEl.textContent = 'Izin kamera ditolak atau kamera sedang dipakai aplikasi lain.';
+                showToast('Gagal mengakses kamera perangkat.', 'error');
+            }
+        }
+
+        function processScannedCode(rawCode) {
+            const code = (rawCode || '').trim();
+            if (!code) {
+                showToast('Kode scan masih kosong.', 'error');
+                return;
+            }
+
+            const existingItem = catalogItems.find(
+                it => it.no.toLowerCase() === code.toLowerCase()
+            );
+
+            if (scanTargetMode === 'nota') {
+                const inputEl = document.getElementById('scan-manual-input');
+                const isContinuous = document.getElementById('scan-continuous-mode')?.checked ?? true;
+
+                if (existingItem) {
+                    addOrIncrementScannedCatalogToNota(existingItem);
+                    switchDocType('nota');
+                    if (isContinuous) {
+                        if (inputEl) {
+                            inputEl.value = '';
+                            inputEl.focus();
+                        }
+                    } else {
+                        closeScanCatalogModal();
+                    }
+                } else {
+                    showToast(`Kode "${code}" belum ada di katalog. Silakan daftarkan item terlebih dahulu.`, 'info');
+                    switchDocType('katalog');
+                    const catNoEl = document.getElementById('cat-no');
+                    if (catNoEl) catNoEl.value = code;
+                    closeScanCatalogModal();
+                    document.getElementById('cat-label')?.focus();
+                }
+                return;
+            }
+
+            // Mode: Input ke Katalog
+            switchDocType('katalog');
+            closeScanCatalogModal();
+
+            if (existingItem) {
+                selectedLabelItemId = existingItem.id;
+                const searchEl = document.getElementById('cat-search');
+                if (searchEl) searchEl.value = code;
+                renderCatalogList();
+                renderPreview();
+                showToast(`Kode "${code}" sudah terdaftar di katalog (${existingItem.label}).`, 'info');
+            } else {
+                const catNoEl = document.getElementById('cat-no');
+                if (catNoEl) catNoEl.value = code;
+                const catLabelEl = document.getElementById('cat-label');
+                if (catLabelEl) {
+                    catLabelEl.value = '';
+                    catLabelEl.focus();
+                }
+                showToast(`Kode "${code}" berhasil dipindai! Silakan lengkapi nama label & harga.`, 'success');
+            }
+        }
+
+        // ==========================================
+        // 11. INISIALISASI APLIKASI SAAT HALAMAN DIMUAT
+        // ==========================================
+        window.onload = function () {
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const notaDateEl = document.getElementById('nota-date');
+                const kuiDateEl = document.getElementById('kui-date');
+                if (notaDateEl && !notaDateEl.value) notaDateEl.value = today;
+                if (kuiDateEl && !kuiDateEl.value) kuiDateEl.value = today;
+
+                renderNotaItemsForm();
+                renderCatalogList();
+                resetCatalogFormInputs();
+                handleKuitansiAmountChange();
+                setKuitansiModel(currentKuitansiModel);
+                setKuitansiColor(currentKuitansiColor);
+                renderPreview();
+
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            } catch (err) {
+                console.error('Gagal menginisialisasi aplikasi:', err);
+            }
+        };
+    </script>
+</body>
+</html>
